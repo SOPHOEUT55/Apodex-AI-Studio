@@ -16,6 +16,44 @@ export interface StreamCallbacks {
   onError?: (error: Error) => void;
 }
 
+export async function executePythonCode(
+  code: string,
+  input?: string
+): Promise<{ stdout: string; stderr: string; exitCode: number; executionTimeMs: number; success: boolean; error?: string }> {
+  try {
+    const res = await fetch('/api/run-python', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code, input }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Python execution failed with status ' + res.status }));
+      return {
+        stdout: '',
+        stderr: err.error || `HTTP ${res.status}`,
+        exitCode: 1,
+        executionTimeMs: 0,
+        success: false,
+        error: err.error,
+      };
+    }
+
+    return await res.json();
+  } catch (e: any) {
+    return {
+      stdout: '',
+      stderr: e.message || 'Network error running Python code',
+      exitCode: 1,
+      executionTimeMs: 0,
+      success: false,
+      error: e.message,
+    };
+  }
+}
+
 export async function fetchAvailableModels(): Promise<AIModel[]> {
   try {
     const res = await fetch('/api/models');

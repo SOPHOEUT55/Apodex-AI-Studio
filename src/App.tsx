@@ -33,6 +33,7 @@ import { DashboardView } from './components/DashboardView';
 import { ChatView } from './components/ChatView';
 import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
+import { PythonLabView } from './components/PythonLabView';
 import { AuthModal } from './components/AuthModal';
 import { SystemPromptModal } from './components/SystemPromptModal';
 import {
@@ -60,6 +61,7 @@ export default function App() {
     () => loadSettings().defaultModelId || 'apodex/apodex-1.1-mini:free'
   );
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [pythonLabInitialCode, setPythonLabInitialCode] = useState<string>('');
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);

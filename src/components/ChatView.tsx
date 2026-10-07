@@ -19,6 +19,7 @@ import {
   ThumbsDown,
   Cpu,
   Zap,
+  Terminal,
 } from 'lucide-react';
 
 interface ChatViewProps {
@@ -34,12 +35,14 @@ interface ChatViewProps {
   onOpenSystemPrompt: () => void;
   onExportConversation: (format: 'markdown' | 'json') => void;
   onSwitchModel?: (modelId: string) => void;
+  onOpenInPythonLab?: (code: string) => void;
 }
 
 const QUICK_SUGGESTIONS = [
   'Deep analyze this from first principles',
+  'Write a Python program with error handling & unit tests',
   'Provide a calibrated probabilistic forecast',
-  'Show full TypeScript implementation with error handling',
+  'Show full Python implementation with benchmarks',
   'Break down edge cases and failure modes',
 ];
 
@@ -56,6 +59,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onOpenSystemPrompt,
   onExportConversation,
   onSwitchModel,
+  onOpenInPythonLab,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -323,7 +327,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   ) : (
                     <div>
                       {msg.content ? (
-                        <MarkdownRenderer content={msg.content} />
+                        <MarkdownRenderer content={msg.content} onOpenInPythonLab={onOpenInPythonLab} />
                       ) : msg.isStreaming ? (
                         <div className={`flex items-center gap-1.5 py-1 text-xs ${msgIsNemotron ? 'text-emerald-500 dark:text-emerald-400' : 'text-cyan-500 dark:text-cyan-400'}`}>
                           <span className={`w-2 h-2 rounded-full animate-ping ${msgIsNemotron ? 'bg-emerald-500' : 'bg-cyan-500'}`}></span>
@@ -448,6 +452,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Bottom Input Area */}
       <div className="p-3 bg-white dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800">
         <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-800/90 rounded-2xl p-1.5 border border-slate-200 dark:border-slate-700/80 focus-within:ring-2 focus-within:ring-cyan-500/50 focus-within:border-cyan-500 transition-all">
+          {onOpenInPythonLab && (
+            <button
+              type="button"
+              onClick={() => onOpenInPythonLab('')}
+              className="p-2 rounded-xl text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer shrink-0"
+              title="Open Python 3.10 Lab"
+            >
+              <Terminal className="w-4 h-4" />
+            </button>
+          )}
+
           <textarea
             ref={textareaRef}
             rows={1}

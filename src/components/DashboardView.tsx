@@ -15,6 +15,9 @@ import {
   ChevronRight,
   Clock,
   Pin,
+  Terminal,
+  Play,
+  Zap,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -32,6 +35,7 @@ interface DashboardViewProps {
   onStartNewChat: (initialPrompt?: string, modelId?: string) => void;
   onOpenConversation: (id: string) => void;
   onNavigateToHistory: () => void;
+  onNavigateToPythonLab?: (initialCode?: string) => void;
 }
 
 const FEATURED_PROMPTS = [
@@ -368,6 +372,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Python 3.10 Interactive Workbench Highlight */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-amber-500/10 via-slate-900 to-indigo-950 border border-amber-500/30 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 shrink-0">
+              <Terminal className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base sm:text-lg">Python 3.10 Interactive Workbench</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                  SANDBOX READY
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Execute algorithms, simulations, OLS regression, and SQLite queries natively with AI co-pilot.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigateToPythonLab?.()}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer self-start md:self-auto shrink-0"
+          >
+            <Play className="w-4 h-4 fill-slate-950" />
+            <span>Launch Python Workbench</span>
+          </button>
+        </div>
+
+        {/* Quick Launch Snippet Buttons */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800/80 relative z-10">
+          <button
+            onClick={() => onNavigateToPythonLab?.()}
+            className="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-colors cursor-pointer group"
+          >
+            <span className="text-[10px] text-amber-400 font-bold block mb-0.5">SIMULATION</span>
+            <span className="text-xs font-semibold text-slate-200 group-hover:text-white block truncate">Monte Carlo Pi</span>
+          </button>
+          <button
+            onClick={() => onNavigateToPythonLab?.()}
+            className="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-colors cursor-pointer group"
+          >
+            <span className="text-[10px] text-cyan-400 font-bold block mb-0.5">DATA SCIENCE</span>
+            <span className="text-xs font-semibold text-slate-200 group-hover:text-white block truncate">OLS Regression</span>
+          </button>
+          <button
+            onClick={() => onNavigateToPythonLab?.()}
+            className="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-colors cursor-pointer group"
+          >
+            <span className="text-[10px] text-emerald-400 font-bold block mb-0.5">ALGORITHMS</span>
+            <span className="text-xs font-semibold text-slate-200 group-hover:text-white block truncate">Dijkstra Routing</span>
+          </button>
+          <button
+            onClick={() => onNavigateToPythonLab?.()}
+            className="p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-left transition-colors cursor-pointer group"
+          >
+            <span className="text-[10px] text-purple-400 font-bold block mb-0.5">DATABASE</span>
+            <span className="text-xs font-semibold text-slate-200 group-hover:text-white block truncate">SQLite In-Memory</span>
+          </button>
         </div>
       </div>
 

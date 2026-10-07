@@ -1,6 +1,9 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { spawn } from 'child_process';
 import {defineConfig, Plugin} from 'vite';
 import dotenv from 'dotenv';
 
@@ -70,8 +73,107 @@ function apiProxyPlugin(): Plugin {
           res.end(JSON.stringify({
             status: 'ok',
             models: SUPPORTED_MODELS,
+            pythonVersion: 'Python 3.10',
             timestamp: new Date().toISOString()
           }));
+          return;
+        }
+
+        // Endpoint: /api/run-python
+        if (req.url === '/api/run-python' && req.method === 'POST') {
+          try {
+            let bodyBuffer = '';
+            for await (const chunk of req) {
+              bodyBuffer += chunk;
+            }
+            const body = bodyBuffer ? JSON.parse(bodyBuffer) : {};
+            const { code = '', input = '' } = body;
+
+            if (!code || typeof code !== 'string') {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Python code string is required' }));
+              return;
+            }
+
+            const tmpFilePath = path.join(os.tmpdir(), `py_script_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.py`);
+            await fs.promises.writeFile(tmpFilePath, code, 'utf8');
+
+            const startTime = Date.now();
+            const pyProcess = spawn('python3', ['-u', tmpFilePath]);
+
+            let stdout = '';
+            let stderr = '';
+            let killedByTimeout = false;
+
+            const timeoutTimer = setTimeout(() => {
+              killedByTimeout = true;
+              pyProcess.kill('SIGKILL');
+            }, 10000); // 10-second timeout
+
+            pyProcess.stdout.on('data', (data) => {
+              stdout += data.toString();
+              if (stdout.length > 80000) {
+                pyProcess.kill('SIGTERM');
+              }
+            });
+
+            pyProcess.stderr.on('data', (data) => {
+              stderr += data.toString();
+              if (stderr.length > 80000) {
+                pyProcess.kill('SIGTERM');
+              }
+            });
+
+            if (input) {
+              pyProcess.stdin.write(input + '\n');
+            }
+            pyProcess.stdin.end();
+
+            pyProcess.on('close', async (exitCode) => {
+              clearTimeout(timeoutTimer);
+              try {
+                await fs.promises.unlink(tmpFilePath);
+              } catch {}
+
+              const executionTimeMs = Date.now() - startTime;
+              if (killedByTimeout) {
+                stderr += '\n[Execution Terminated: Timed out after 10 seconds]';
+              }
+
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              res.end(JSON.stringify({
+                stdout,
+                stderr,
+                exitCode: exitCode ?? (killedByTimeout ? 124 : 0),
+                executionTimeMs,
+                success: exitCode === 0 && !killedByTimeout,
+              }));
+            });
+
+            pyProcess.on('error', async (err) => {
+              clearTimeout(timeoutTimer);
+              try {
+                await fs.promises.unlink(tmpFilePath);
+              } catch {}
+
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 500;
+              res.end(JSON.stringify({
+                stdout: '',
+                stderr: err.message,
+                exitCode: 1,
+                executionTimeMs: Date.now() - startTime,
+                success: false,
+                error: err.message,
+              }));
+            });
+          } catch (err: any) {
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: err.message || 'Execution error' }));
+          }
           return;
         }
 

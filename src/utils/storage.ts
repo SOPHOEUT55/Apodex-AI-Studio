@@ -1,4 +1,4 @@
-import { AppSettings, Conversation, User } from '../types';
+import { AppSettings, Conversation, ExecutionHistoryItem, SavedScript, User } from '../types';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'apodex_current_user_v1',
@@ -6,6 +6,8 @@ const STORAGE_KEYS = {
   CONVERSATIONS: 'apodex_conversations_v1',
   SETTINGS: 'apodex_settings_v1',
   ACTIVE_CONVERSATION: 'apodex_active_conv_v1',
+  SAVED_SCRIPTS: 'apodex_saved_python_scripts_v1',
+  EXECUTION_HISTORY: 'apodex_python_history_v1',
 };
 
 export const DEFAULT_USER: User = {
@@ -277,3 +279,41 @@ export function importDataFromJSON(jsonString: string): boolean {
     return false;
   }
 }
+
+export function loadSavedScripts(): SavedScript[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SAVED_SCRIPTS);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error loading saved scripts:', e);
+  }
+  return [];
+}
+
+export function saveSavedScripts(scripts: SavedScript[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SAVED_SCRIPTS, JSON.stringify(scripts));
+  } catch (e) {
+    console.error('Error saving scripts:', e);
+  }
+}
+
+export function loadExecutionHistory(): ExecutionHistoryItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.EXECUTION_HISTORY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error loading python execution history:', e);
+  }
+  return [];
+}
+
+export function saveExecutionHistory(history: ExecutionHistoryItem[]): void {
+  try {
+    // Keep max 30 items
+    localStorage.setItem(STORAGE_KEYS.EXECUTION_HISTORY, JSON.stringify(history.slice(0, 30)));
+  } catch (e) {
+    console.error('Error saving execution history:', e);
+  }
+}
+

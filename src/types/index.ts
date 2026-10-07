@@ -66,7 +66,42 @@ export interface AppSettings {
   defaultModelId: string;
 }
 
-export type ActiveTab = 'dashboard' | 'chat' | 'history' | 'settings' | 'profile';
+export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile';
+
+export interface PythonExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  executionTimeMs: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface ExecutionHistoryItem {
+  id: string;
+  timestamp: number;
+  code: string;
+  result: PythonExecutionResult;
+  title?: string;
+}
+
+export interface SavedScript {
+  id: string;
+  title: string;
+  description?: string;
+  code: string;
+  updatedAt: number;
+  category?: string;
+}
+
+export interface PythonSnippet {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  code: string;
+  icon?: string;
+}
 
 export interface PromptTemplate {
   id: string;
