@@ -1,0 +1,7 @@
+{
+  "name": "Apodex and Nemotron AI - Reasoning Chat and Dashboard",
+  "description": "Multi-model reasoning AI chat platform powered by Apodex 1.1 Mini and NVIDIA Nemotron 3 Ultra (free) with reasoning display, analytics dashboard, user authentication, and persistent local chat history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
