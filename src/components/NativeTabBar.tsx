@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab } from '../types';
-import { LayoutDashboard, MessageSquare, Terminal, Clock, Sliders, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Terminal, Volume2, Clock, Sliders, User as UserIcon } from 'lucide-react';
 
 interface NativeTabBarProps {
   activeTab: ActiveTab;
@@ -17,9 +17,9 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
     { id: 'dashboard' as ActiveTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'chat' as ActiveTab, label: 'Chat', icon: MessageSquare, badge: unreadCount },
     { id: 'python' as ActiveTab, label: 'Python Lab', icon: Terminal },
+    { id: 'tts' as ActiveTab, label: 'Voice Studio', icon: Volume2 },
     { id: 'history' as ActiveTab, label: 'History', icon: Clock },
     { id: 'settings' as ActiveTab, label: 'Settings', icon: Sliders },
-    { id: 'profile' as ActiveTab, label: 'Account', icon: UserIcon },
   ];
 
   return (

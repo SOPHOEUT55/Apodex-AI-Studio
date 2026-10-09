@@ -18,6 +18,7 @@ import {
   Terminal,
   Play,
   Zap,
+  Volume2,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -36,6 +37,7 @@ interface DashboardViewProps {
   onOpenConversation: (id: string) => void;
   onNavigateToHistory: () => void;
   onNavigateToPythonLab?: (initialCode?: string) => void;
+  onNavigateToTTS?: () => void;
 }
 
 const FEATURED_PROMPTS = [
@@ -90,31 +92,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onStartNewChat,
   onOpenConversation,
   onNavigateToHistory,
+  onNavigateToPythonLab,
+  onNavigateToTTS,
 }) => {
   const recentConversations = [...conversations]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 4);
 
-  const isNemotronActive = currentModelId.includes('nemotron');
+  const isNemotronActive = currentModelId.includes('nemotron-3-ultra');
+  const isVoxtralActive = currentModelId.includes('voxtral');
+  const isOmniActive = currentModelId.includes('nano-omni');
 
   return (
     <div className="space-y-6 pb-8 animate-in fade-in duration-200">
       {/* Hero Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white p-6 sm:p-8 shadow-xl">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5" />
-              Dual Free Reasoning Models Active
+              Multimodal Reasoning & Voice AI Active
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Welcome back, <span className="text-cyan-400">{currentUser.name}</span>
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-              Choose between <strong>Apodex 1.1 Mini</strong> for quantitative forecasting & deep reasoning or <strong>NVIDIA Nemotron 3 Ultra</strong> for 550B MoE frontier reasoning and code synthesis. Both models are 100% free with step-by-step thinking visibility.
+              Experience frontier AI with <strong>Mistral Voxtral 24B</strong> for voice & speech, <strong>NVIDIA Nemotron Nano Omni</strong> for multimodal audio-reasoning, <strong>Nemotron 3 Ultra</strong> (550B MoE), and <strong>Apodex 1.1 Mini</strong>.
             </p>
           </div>
 
@@ -124,8 +130,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-emerald-600 hover:opacity-90 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 cursor-pointer"
             >
               <MessageSquarePlus className="w-4 h-4" />
-              New Chat ({isNemotronActive ? 'NVIDIA' : 'Apodex'})
+              New Chat
             </button>
+            {onNavigateToTTS && (
+              <button
+                onClick={onNavigateToTTS}
+                className="px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Volume2 className="w-4 h-4 text-amber-400" />
+                Voice Studio
+              </button>
+            )}
             <button
               onClick={onNavigateToHistory}
               className="px-4 py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-white text-xs sm:text-sm font-medium transition-all flex items-center gap-2 cursor-pointer"
@@ -143,7 +158,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-cyan-500" />
             <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-              Active AI Models (Free Tier)
+              Active AI Models (Free Tier & Voice)
             </h2>
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -151,98 +166,152 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-          {/* Apodex Model Card */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Mistral Voxtral Card */}
           <div
-            onClick={() => onSelectModel('apodex/apodex-1.1-mini:free')}
-            className={`p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
-              !isNemotronActive
-                ? 'border-cyan-500 bg-cyan-50/40 dark:bg-cyan-950/20 shadow-md ring-2 ring-cyan-500/20'
-                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-cyan-500/40'
+            onClick={() => onSelectModel('mistralai/voxtral-small-24b-2507')}
+            className={`p-4 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
+              isVoxtralActive
+                ? 'border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-md ring-2 ring-amber-500/20'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/40'
             }`}
           >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
-                  <Sparkles className="w-5 h-5" />
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/20">
+                  <Volume2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
-                      Apodex: Apodex 1.1 Mini
-                    </h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">
-                      FREE
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Provider: Novita / Apodex • 64K Context
-                  </p>
+                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                    Mistral Voxtral 24B
+                  </h3>
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                    Voice & Speech
+                  </span>
                 </div>
               </div>
-              {!isNemotronActive && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-500 text-white">
+              {isVoxtralActive && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
                   Active
                 </span>
               )}
             </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-              Reasoning-first architecture optimized for long-horizon research, forecasting scenarios, and quantitative analysis with transparent step-by-step thinking.
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2 line-clamp-2">
+              Voice-native frontier model specialized in spoken dialogues, text-to-speech analysis, and audio generation.
             </p>
+            <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+              32K Context • 24B Dense
+            </div>
+          </div>
 
-            <div className="flex items-center justify-between text-[11px] pt-3 border-t border-slate-200/60 dark:border-slate-800/80">
-              <span className="text-cyan-600 dark:text-cyan-400 font-semibold">
-                Reasoning Engine Active
-              </span>
-              <span className="text-slate-400 font-mono">apodex/apodex-1.1-mini:free</span>
+          {/* NVIDIA Nano Omni Card */}
+          <div
+            onClick={() => onSelectModel('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free')}
+            className={`p-4 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
+              isOmniActive
+                ? 'border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 shadow-md ring-2 ring-purple-500/20'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-purple-500/40'
+            }`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                    Nemotron Nano Omni
+                  </h3>
+                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                    Multimodal & Voice
+                  </span>
+                </div>
+              </div>
+              {isOmniActive && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500 text-white">
+                  Active
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2 line-clamp-2">
+              Multimodal Omni model combining text, audio, and visual reasoning with step-by-step chain of thought.
+            </p>
+            <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+              128K Context • 30B MoE (Free)
+            </div>
+          </div>
+
+          {/* Apodex Model Card */}
+          <div
+            onClick={() => onSelectModel('apodex/apodex-1.1-mini:free')}
+            className={`p-4 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
+              !isNemotronActive && !isVoxtralActive && !isOmniActive
+                ? 'border-cyan-500 bg-cyan-50/40 dark:bg-cyan-950/20 shadow-md ring-2 ring-cyan-500/20'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-cyan-500/40'
+            }`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+                  <Zap className="w-4 h-4 fill-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                    Apodex 1.1 Mini
+                  </h3>
+                  <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
+                    Forecasting & Logic
+                  </span>
+                </div>
+              </div>
+              {!isNemotronActive && !isVoxtralActive && !isOmniActive && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500 text-white">
+                  Active
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2 line-clamp-2">
+              Reasoning-first architecture for forecasting scenarios and quantitative analysis with transparent thinking.
+            </p>
+            <div className="text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+              64K Context • Reasoning Engine
             </div>
           </div>
 
           {/* NVIDIA Nemotron 3 Ultra Model Card */}
           <div
             onClick={() => onSelectModel('nvidia/nemotron-3-ultra-550b-a55b:free')}
-            className={`p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
+            className={`p-4 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
               isNemotronActive
                 ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-md ring-2 ring-emerald-500/20'
                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-500/40'
             }`}
           >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-                  <Cpu className="w-5 h-5" />
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                  <Cpu className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
-                      NVIDIA: Nemotron 3 Ultra
-                    </h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                      FREE
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Provider: NVIDIA • 128K Context • 550B MoE
-                  </p>
+                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                    Nemotron 3 Ultra
+                  </h3>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                    550B MoE Frontier
+                  </span>
                 </div>
               </div>
               {isNemotronActive && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-white">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-white">
                   Active
                 </span>
               )}
             </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-              Frontier reasoning and orchestration model with 55B active parameters out of 550B total. Hybrid Transformer-Mamba MoE for agentic workflows & code.
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2 line-clamp-2">
+              55B active / 550B MoE hybrid architecture with code synthesis and verified thinking loop.
             </p>
-
-            <div className="flex items-center justify-between text-[11px] pt-3 border-t border-slate-200/60 dark:border-slate-800/80">
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                55B Active / 550B MoE
-              </span>
-              <span className="text-slate-400 font-mono">nvidia/nemotron-3-ultra:free</span>
+            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+              128K Context • 550B MoE
             </div>
           </div>
         </div>

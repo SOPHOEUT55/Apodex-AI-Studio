@@ -34,8 +34,10 @@ import { ChatView } from './components/ChatView';
 import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
 import { PythonLabView } from './components/PythonLabView';
+import { VoiceStudioView } from './components/VoiceStudioView';
 import { AuthModal } from './components/AuthModal';
 import { SystemPromptModal } from './components/SystemPromptModal';
+import { speakText } from './utils/tts';
 import {
   Wifi,
   Battery,
@@ -279,6 +281,7 @@ export default function App() {
               );
             },
             onDone: (content, reasoning) => {
+              const finalContent = content || fullContent;
               setConversations((prev) =>
                 prev.map((c) => {
                   if (c.id === targetConvId) {
@@ -289,10 +292,10 @@ export default function App() {
                         m.id === assistantMessageId
                           ? {
                               ...m,
-                              content: content || fullContent,
+                              content: finalContent,
                               reasoning: reasoning || fullReasoning,
                               isStreaming: false,
-                              tokens: Math.round((content || fullContent).length / 4) + 120,
+                              tokens: Math.round(finalContent.length / 4) + 120,
                               modelUsed: targetModel,
                             }
                           : m
@@ -303,6 +306,10 @@ export default function App() {
                 })
               );
               setIsGenerating(false);
+
+              if (settings.autoReadAloud && finalContent) {
+                speakText(finalContent).catch(() => {});
+              }
             },
             onError: (err) => {
               console.error('Stream error:', err);
@@ -564,6 +571,11 @@ export default function App() {
               setActiveTab('chat');
             }}
             onNavigateToHistory={() => setActiveTab('history')}
+            onNavigateToPythonLab={(code) => {
+              if (code) setPythonLabInitialCode(code);
+              setActiveTab('python');
+            }}
+            onNavigateToTTS={() => setActiveTab('tts')}
           />
         );
       case 'chat':
@@ -581,6 +593,36 @@ export default function App() {
             onOpenSystemPrompt={() => setSystemPromptModalOpen(true)}
             onExportConversation={handleExportConversation}
             onSwitchModel={handleSwitchModel}
+            onOpenInPythonLab={(code) => {
+              setPythonLabInitialCode(code);
+              setActiveTab('python');
+            }}
+          />
+        );
+      case 'python':
+        return (
+          <PythonLabView
+            currentModelId={currentModelId}
+            initialCode={pythonLabInitialCode}
+            onAskAIAboutCode={(prompt, code) => {
+              const fullPrompt = `${prompt}\n\n\`\`\`python\n${code}\n\`\`\``;
+              createNewConversation('Python Code Assistant', fullPrompt, currentModelId);
+              setActiveTab('chat');
+            }}
+          />
+        );
+      case 'tts':
+        return (
+          <VoiceStudioView
+            currentUser={currentUser}
+            currentModelId={currentModelId}
+            onSelectModel={handleSwitchModel}
+            onNavigateToChat={(initialPrompt) => {
+              if (initialPrompt) {
+                createNewConversation('Voice AI Chat', initialPrompt, currentModelId);
+              }
+              setActiveTab('chat');
+            }}
           />
         );
       case 'history':

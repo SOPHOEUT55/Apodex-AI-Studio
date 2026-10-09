@@ -221,6 +221,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Model Status Pills */}
         <div className="space-y-2">
+          {/* Mistral Voxtral Pill */}
+          <div className="p-3 rounded-2xl bg-amber-500/5 dark:bg-amber-950/20 border border-amber-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-xs">
+                TTS
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">
+                  Mistral Voxtral Small 24B (Voice & Speech)
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  mistralai/voxtral-small-24b-2507 • Voice Native
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+              VOICE ENGINE
+            </span>
+          </div>
+
+          {/* Nemotron Nano Omni Pill */}
+          <div className="p-3 rounded-2xl bg-purple-500/5 dark:bg-purple-950/20 border border-purple-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs">
+                OMNI
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">
+                  NVIDIA Nemotron 3 Nano Omni (free)
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+              MULTIMODAL
+            </span>
+          </div>
+
           {/* Apodex Pill */}
           <div className="p-3 rounded-2xl bg-cyan-500/5 dark:bg-cyan-950/20 border border-cyan-500/20 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -259,6 +299,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
               OPERATIONAL
             </span>
+          </div>
+        </div>
+
+        {/* Text-to-Speech & Voice Settings Section */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                Auto Read Aloud Responses
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Automatically synthesize audio and speak assistant messages when generated
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={Boolean(settings.autoReadAloud)}
+              onChange={(e) => onUpdateSettings({ autoReadAloud: e.target.checked })}
+              className="w-4 h-4 accent-amber-500 cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                Speech-to-Text Voice Dictation
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Enable microphone button in chat to dictate prompts by speaking
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.enableVoiceInput ?? true}
+              onChange={(e) => onUpdateSettings({ enableVoiceInput: e.target.checked })}
+              className="w-4 h-4 accent-amber-500 cursor-pointer"
+            />
           </div>
         </div>
 

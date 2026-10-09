@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AIModel } from '../types';
 import { AVAILABLE_MODELS, getModelById } from '../utils/models';
-import { Zap, Cpu, ChevronDown, Check, Info, Sparkles } from 'lucide-react';
+import { Zap, Cpu, ChevronDown, Check, Info, Sparkles, Volume2 } from 'lucide-react';
 
 interface ModelSelectorProps {
   currentModelId: string;
@@ -34,7 +34,55 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     setIsOpen(false);
   };
 
-  const isNvidia = currentModel.id.includes('nemotron');
+  const getModelTheme = (model: AIModel) => {
+    if (model.id.includes('voxtral')) {
+      return {
+        border: 'border-amber-500/40',
+        bg: 'bg-amber-500/10',
+        text: 'text-amber-700 dark:text-amber-300',
+        iconBg: 'bg-amber-600',
+        hover: 'hover:bg-amber-500/20',
+        checkColor: 'text-amber-500',
+      };
+    }
+    if (model.id.includes('nano-omni')) {
+      return {
+        border: 'border-purple-500/40',
+        bg: 'bg-purple-500/10',
+        text: 'text-purple-700 dark:text-purple-300',
+        iconBg: 'bg-purple-600',
+        hover: 'hover:bg-purple-500/20',
+        checkColor: 'text-purple-500',
+      };
+    }
+    if (model.id.includes('nemotron')) {
+      return {
+        border: 'border-emerald-500/40',
+        bg: 'bg-emerald-500/10',
+        text: 'text-emerald-700 dark:text-emerald-300',
+        iconBg: 'bg-emerald-600',
+        hover: 'hover:bg-emerald-500/20',
+        checkColor: 'text-emerald-500',
+      };
+    }
+    return {
+      border: 'border-cyan-500/40',
+      bg: 'bg-cyan-500/10',
+      text: 'text-cyan-700 dark:text-cyan-300',
+      iconBg: 'bg-cyan-600',
+      hover: 'hover:bg-cyan-500/20',
+      checkColor: 'text-cyan-500',
+    };
+  };
+
+  const activeTheme = getModelTheme(currentModel);
+
+  const renderModelIcon = (model: AIModel) => {
+    if (model.id.includes('voxtral')) return <Volume2 className="w-3.5 h-3.5" />;
+    if (model.id.includes('nano-omni')) return <Sparkles className="w-3.5 h-3.5" />;
+    if (model.id.includes('nemotron')) return <Cpu className="w-3.5 h-3.5" />;
+    return <Zap className="w-3.5 h-3.5 fill-white" />;
+  };
 
   return (
     <div className="relative inline-block" ref={containerRef}>
@@ -43,19 +91,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 rounded-2xl border transition-all cursor-pointer select-none ${
           compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-xs sm:text-sm'
-        } ${
-          isNvidia
-            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
-            : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20'
-        }`}
+        } ${activeTheme.border} ${activeTheme.bg} ${activeTheme.text} ${activeTheme.hover}`}
         title="Switch AI Reasoning Model"
       >
         <div
-          className={`w-5 h-5 rounded-lg flex items-center justify-center text-white shrink-0 ${
-            isNvidia ? 'bg-emerald-600' : 'bg-cyan-600'
-          }`}
+          className={`w-5 h-5 rounded-lg flex items-center justify-center text-white shrink-0 ${activeTheme.iconBg}`}
         >
-          {isNvidia ? <Cpu className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5 fill-white" />}
+          {renderModelIcon(currentModel)}
         </div>
 
         <div className="flex flex-col text-left">
@@ -77,20 +119,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute top-full left-0 mt-2 w-72 sm:w-84 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] overflow-y-auto scrollbar-thin">
           <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Select Free AI Model
+              Select AI Model
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
-              2 Models Available
+              {AVAILABLE_MODELS.length} Models Available
             </span>
           </div>
 
           <div className="space-y-1.5 mt-2">
             {AVAILABLE_MODELS.map((model) => {
               const isSelected = model.id === currentModelId;
-              const isNvidiaModel = model.id.includes('nemotron');
+              const theme = getModelTheme(model);
 
               return (
                 <div
@@ -98,37 +140,30 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   onClick={() => handleSelect(model.id)}
                   className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
                     isSelected
-                      ? isNvidiaModel
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100'
-                        : 'border-cyan-500 bg-cyan-500/10 text-cyan-950 dark:text-cyan-100'
+                      ? `${theme.border} ${theme.bg} text-slate-900 dark:text-white ring-1 ring-amber-500/30`
                       : 'border-slate-200/60 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 mt-0.5 ${
-                      isNvidiaModel
-                        ? 'bg-gradient-to-tr from-emerald-600 to-teal-500'
-                        : 'bg-gradient-to-tr from-cyan-600 to-indigo-600'
-                    }`}
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 mt-0.5 ${theme.iconBg}`}
                   >
-                    {isNvidiaModel ? (
-                      <Cpu className="w-4 h-4" />
-                    ) : (
-                      <Zap className="w-4 h-4 fill-white" />
-                    )}
+                    {renderModelIcon(model)}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs sm:text-sm font-bold truncate">
-                        {model.shortName}
-                      </h4>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-bold truncate">
+                          {model.shortName}
+                        </h4>
+                        {model.hasVoiceSupport && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                            VOICE
+                          </span>
+                        )}
+                      </div>
                       {isSelected && (
-                        <Check
-                          className={`w-4 h-4 shrink-0 ${
-                            isNvidiaModel ? 'text-emerald-500' : 'text-cyan-500'
-                          }`}
-                        />
+                        <Check className={`w-4 h-4 shrink-0 ${theme.checkColor}`} />
                       )}
                     </div>
 
@@ -153,7 +188,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
           <div className="mt-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
-            <span>Both models run free with deep reasoning step visibility.</span>
+            <span>Includes text-to-speech audio synthesis and transparent step reasoning.</span>
           </div>
         </div>
       )}

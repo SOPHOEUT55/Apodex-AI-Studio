@@ -13,7 +13,9 @@ export interface AIModel {
   accentColor: string;
   borderColor: string;
   bgColor: string;
-  iconType: 'apodex' | 'nvidia';
+  iconType: 'apodex' | 'nvidia' | 'voxtral' | 'voice' | 'omni';
+  hasVoiceSupport?: boolean;
+  isOmni?: boolean;
 }
 
 export interface Message {
@@ -39,7 +41,7 @@ export interface Conversation {
   pinned?: boolean;
   tags?: string[];
   userId: string;
-  modelId: string; // e.g. 'apodex/apodex-1.1-mini:free' or 'nvidia/nemotron-3-ultra-550b-a55b:free'
+  modelId: string;
 }
 
 export interface User {
@@ -64,9 +66,15 @@ export interface AppSettings {
   systemPromptPreset: string;
   temperature: number;
   defaultModelId: string;
+  autoReadAloud?: boolean;
+  ttsVoice?: string;
+  ttsRate?: number;
+  ttsPitch?: number;
+  ttsVolume?: number;
+  enableVoiceInput?: boolean;
 }
 
-export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile';
+export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile' | 'tts';
 
 export interface PythonExecutionResult {
   stdout: string;

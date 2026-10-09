@@ -3,6 +3,14 @@ import { Conversation, Message, User } from '../types';
 import { ReasoningBox } from './ReasoningBox';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import {
+  speakText,
+  stopSpeech,
+  startVoiceRecognition,
+  isSpeechRecognitionSupported,
+  isSpeechActive,
+  downloadSpeechWav,
+} from '../utils/tts';
+import {
   Send,
   Square,
   Sparkles,
@@ -20,6 +28,10 @@ import {
   Cpu,
   Zap,
   Terminal,
+  Volume2,
+  VolumeX,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 
 interface ChatViewProps {
@@ -68,16 +80,96 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [feedbackMap, setFeedbackMap] = useState<Record<string, 'up' | 'down'>>({});
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
+  // Text-to-Speech & Voice Input state
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [downloadingMsgId, setDownloadingMsgId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const recognitionStopperRef = useRef<(() => void) | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const isVoxtral = (conversation.modelId || '').includes('voxtral');
+  const isOmni = (conversation.modelId || '').includes('nano-omni');
   const isNemotron = (conversation.modelId || '').includes('nemotron');
 
   // Auto-scroll on new messages or streaming
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation.messages, isGenerating]);
+
+  // Clean up ongoing speech and voice recognition on unmount or conversation change
+  useEffect(() => {
+    return () => {
+      stopSpeech();
+      if (recognitionStopperRef.current) {
+        recognitionStopperRef.current();
+        recognitionStopperRef.current = null;
+      }
+    };
+  }, [conversation.id]);
+
+  const toggleSpeakMessage = async (msgId: string, content: string) => {
+    if (speakingMsgId === msgId) {
+      stopSpeech();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    try {
+      setSpeakingMsgId(msgId);
+      await speakText(content, {
+        onStart: () => setSpeakingMsgId(msgId),
+        onEnd: () => setSpeakingMsgId(null),
+        onError: () => setSpeakingMsgId(null),
+      });
+    } catch {
+      setSpeakingMsgId(null);
+    }
+  };
+
+  const handleDownloadSpeech = async (msgId: string, content: string) => {
+    try {
+      setDownloadingMsgId(msgId);
+      await downloadSpeechWav(content, 'ai-speech-response');
+    } catch (err: any) {
+      console.error('Download speech audio error:', err);
+    } finally {
+      setDownloadingMsgId(null);
+    }
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      if (recognitionStopperRef.current) {
+        recognitionStopperRef.current();
+        recognitionStopperRef.current = null;
+      }
+      setIsListening(false);
+    } else {
+      if (!isSpeechRecognitionSupported()) {
+        alert('Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+        return;
+      }
+      try {
+        const recognizer = startVoiceRecognition({
+          onStart: () => setIsListening(true),
+          onResult: (transcript, isFinal) => {
+            setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+            if (isFinal) {
+              setIsListening(false);
+            }
+          },
+          onEnd: () => setIsListening(false),
+          onError: () => setIsListening(false),
+        });
+        recognitionStopperRef.current = recognizer.stop;
+      } catch {
+        setIsListening(false);
+      }
+    }
+  };
 
   // Sync temp title when conversation changes
   useEffect(() => {
@@ -376,6 +468,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       {!isUser && (
                         <>
                           <button
+                            onClick={() => toggleSpeakMessage(msg.id, msg.content)}
+                            className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex items-center gap-1 ${
+                              speakingMsgId === msg.id ? 'text-amber-500 font-bold' : ''
+                            }`}
+                            title={speakingMsgId === msg.id ? 'Stop listening' : 'Read aloud with Text-to-Speech'}
+                          >
+                            {speakingMsgId === msg.id ? (
+                              <>
+                                <VolumeX className="w-3 h-3 text-amber-500" />
+                                <span className="text-[9px] text-amber-500 animate-pulse font-medium">Speaking...</span>
+                              </>
+                            ) : (
+                              <Volume2 className="w-3 h-3 text-slate-400 hover:text-amber-500" />
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => handleDownloadSpeech(msg.id, msg.content)}
+                            disabled={downloadingMsgId === msg.id}
+                            className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex items-center gap-1 text-slate-400 hover:text-amber-500 disabled:opacity-40"
+                            title="Download audio recording of speech (.wav)"
+                          >
+                            <Download className={`w-3 h-3 ${downloadingMsgId === msg.id ? 'animate-bounce text-amber-500' : ''}`} />
+                          </button>
+
+                          <button
                             onClick={() => giveFeedback(msg.id, 'up')}
                             className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${
                               feedbackMap[msg.id] === 'up' ? 'text-cyan-400 font-bold' : ''
@@ -463,6 +581,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </button>
           )}
 
+          <button
+            type="button"
+            onClick={toggleVoiceInput}
+            className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+              isListening
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20 animate-pulse'
+                : 'text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+            }`}
+            title={isListening ? 'Stop listening (Recording Voice)' : 'Voice Dictation (Microphone)'}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+
           <textarea
             ref={textareaRef}
             rows={1}
@@ -470,9 +601,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
             placeholder={
-              isGenerating
-                ? `${isNemotron ? 'NVIDIA Nemotron 3' : 'Apodex 1.1 Mini'} is generating reasoned response...`
-                : `Ask ${isNemotron ? 'NVIDIA Nemotron 3 Ultra' : 'Apodex 1.1 Mini'} anything (Shift+Enter for newline)...`
+              isListening
+                ? 'Listening to your voice... Speak now'
+                : isGenerating
+                ? `${isVoxtral ? 'Mistral Voxtral 24B' : isOmni ? 'Nemotron Nano Omni' : isNemotron ? 'NVIDIA Nemotron 3' : 'Apodex 1.1 Mini'} is generating reasoned response...`
+                : `Ask ${isVoxtral ? 'Mistral Voxtral' : isOmni ? 'Nemotron Nano Omni' : isNemotron ? 'NVIDIA Nemotron' : 'Apodex'} anything (Shift+Enter for newline)...`
             }
             disabled={isGenerating}
             className="flex-1 max-h-36 bg-transparent border-none text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 resize-none px-2.5 py-1.5 focus:outline-none leading-relaxed"
