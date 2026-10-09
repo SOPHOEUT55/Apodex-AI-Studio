@@ -597,6 +597,7 @@ export default function App() {
               setPythonLabInitialCode(code);
               setActiveTab('python');
             }}
+            language={settings.language || 'en'}
           />
         );
       case 'python':
@@ -622,6 +623,10 @@ export default function App() {
                 createNewConversation('Voice AI Chat', initialPrompt, currentModelId);
               }
               setActiveTab('chat');
+            }}
+            language={settings.language || 'en'}
+            onSelectLanguage={(lang) => {
+              setSettings((prev) => ({ ...prev, language: lang }));
             }}
           />
         );
@@ -717,6 +722,10 @@ export default function App() {
                 onOpenSystemPrompt={() => setSystemPromptModalOpen(true)}
                 currentModelId={currentModelId}
                 onSelectModel={handleSwitchModel}
+                language={settings.language || 'en'}
+                onSelectLanguage={(lang) => {
+                  setSettings((prev) => ({ ...prev, language: lang }));
+                }}
               />
 
               {/* Scrollable View inside phone */}
@@ -725,7 +734,11 @@ export default function App() {
               </main>
 
               {/* Native Bottom Tab Bar */}
-              <NativeTabBar activeTab={activeTab} onTabChange={(t) => setActiveTab(t)} />
+              <NativeTabBar
+                activeTab={activeTab}
+                onTabChange={(t) => setActiveTab(t)}
+                language={settings.language || 'en'}
+              />
 
               {/* Home Indicator Bar */}
               <div className="w-32 h-1 bg-slate-400 dark:bg-slate-600 rounded-full mx-auto my-1 select-none" />
@@ -752,6 +765,10 @@ export default function App() {
             onOpenSystemPrompt={() => setSystemPromptModalOpen(true)}
             currentModelId={currentModelId}
             onSelectModel={handleSwitchModel}
+            language={settings.language || 'en'}
+            onSelectLanguage={(lang) => {
+              setSettings((prev) => ({ ...prev, language: lang }));
+            }}
           />
 
           <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col">
@@ -760,7 +777,11 @@ export default function App() {
 
           {/* Bottom Native Tab Bar on mobile screens or fixed bar */}
           <div className="sticky bottom-0 z-30">
-            <NativeTabBar activeTab={activeTab} onTabChange={(t) => setActiveTab(t)} />
+            <NativeTabBar
+              activeTab={activeTab}
+              onTabChange={(t) => setActiveTab(t)}
+              language={settings.language || 'en'}
+            />
           </div>
         </div>
       )}

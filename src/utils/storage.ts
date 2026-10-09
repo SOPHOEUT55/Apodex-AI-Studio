@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   systemPromptPreset: 'You are an advanced reasoning and research AI. Always provide rigorous, structured, and insightful answers with deep analytical clarity.',
   temperature: 0.7,
   defaultModelId: 'apodex/apodex-1.1-mini:free',
+  language: 'en',
 };
 
 // Storage Helpers

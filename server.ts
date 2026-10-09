@@ -70,14 +70,25 @@ const SUPPORTED_MODELS = [
     hasVoiceSupport: true,
   },
   {
-    id: 'nvidia/nemotron-3.5-lightning:free',
-    name: 'NVIDIA: Nemotron 3.5 Lightning (free)',
-    shortName: 'Nemotron 3.5 Lightning',
+    id: 'openai/gpt-audio',
+    name: 'OpenAI: GPT-4o Audio / Speech',
+    shortName: 'GPT Audio & Speech',
+    provider: 'OpenAI',
+    tag: 'Direct Audio & Speech Synthesis',
+    description: 'Frontier speech-to-speech and text-to-speech audio multimodal intelligence for fluid vocal conversation and audio processing.',
+    activeParameters: 'Audio Multimodal',
+    contextWindow: '128K',
+    hasVoiceSupport: true,
+  },
+  {
+    id: 'nvidia/nemotron-3-super-120b-a12b:free',
+    name: 'NVIDIA: Nemotron 3 Super (free)',
+    shortName: 'Nemotron 3 Super',
     provider: 'NVIDIA',
-    tag: 'Ultra-Fast Real-Time Inference',
-    description: 'Sub-second latency frontier conversational model optimized for low-latency voice, TTS dialogue, and interactive streaming.',
-    activeParameters: '8B Distilled',
-    contextWindow: '64K',
+    tag: '120B MoE Deep Reasoning',
+    description: 'High-capacity 120B mixture-of-experts model optimized for deep logical reasoning and multilingual dialogue.',
+    activeParameters: '12B Active / 120B MoE',
+    contextWindow: '128K',
     hasVoiceSupport: true,
   },
 ];
@@ -212,6 +223,12 @@ app.post('/api/chat', async (req, res) => {
     if (model === 'mistralai/voxtral-small-24b-2507') {
       targetModel = 'mistralai/voxtral-small-24b-2507';
       apiKey = TTS_API_KEY;
+    } else if (model === 'openai/gpt-audio') {
+      targetModel = 'openai/gpt-audio';
+      apiKey = TTS_API_KEY;
+    } else if (model.includes('super')) {
+      targetModel = 'nvidia/nemotron-3-super-120b-a12b:free';
+      apiKey = NEMOTRON_API_KEY;
     } else if (model.includes('nano-omni')) {
       targetModel = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free';
       apiKey = TTS_API_KEY;
@@ -355,35 +372,38 @@ const generateSpeechAudioBuffer = async (text: string, format: 'wav' | 'mp3' = '
     return { buffer: combinedMp3, contentType: 'audio/mpeg' };
   }
 
-  // Convert to WAV format using ffmpeg if available
-  return new Promise<{ buffer: Buffer; contentType: string }>((resolve) => {
-    try {
+  // Convert to WAV format using ffmpeg with a temporary seekable file
+  // This guarantees standard RIFF headers and exact PCM s16le data chunk sizes without 0xFFFFFFFF pipe corruption
+  const tmpPrefix = `speech_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const tmpIn = path.join(os.tmpdir(), `${tmpPrefix}.mp3`);
+  const tmpOut = path.join(os.tmpdir(), `${tmpPrefix}.wav`);
+
+  try {
+    await fs.promises.writeFile(tmpIn, combinedMp3);
+    await new Promise<void>((resolve, reject) => {
       const ff = spawn('ffmpeg', [
-        '-i', 'pipe:0',
-        '-f', 'wav',
+        '-y',
+        '-i', tmpIn,
+        '-acodec', 'pcm_s16le',
         '-ar', '24000',
         '-ac', '1',
-        'pipe:1',
+        tmpOut,
       ]);
-      const chunksOut: Buffer[] = [];
-      ff.stdout.on('data', (c) => chunksOut.push(c));
-      ff.stderr.on('data', () => {});
       ff.on('close', (code) => {
-        if (code === 0 && chunksOut.length > 0) {
-          resolve({ buffer: Buffer.concat(chunksOut), contentType: 'audio/wav' });
-        } else {
-          resolve({ buffer: combinedMp3, contentType: 'audio/mpeg' });
-        }
+        if (code === 0) resolve();
+        else reject(new Error(`ffmpeg conversion exited with code ${code}`));
       });
-      ff.on('error', () => {
-        resolve({ buffer: combinedMp3, contentType: 'audio/mpeg' });
-      });
-      ff.stdin.write(combinedMp3);
-      ff.stdin.end();
-    } catch {
-      resolve({ buffer: combinedMp3, contentType: 'audio/mpeg' });
-    }
-  });
+      ff.on('error', reject);
+    });
+    const wavBuffer = await fs.promises.readFile(tmpOut);
+    return { buffer: wavBuffer, contentType: 'audio/wav' };
+  } catch (convErr) {
+    console.warn('ffmpeg conversion fallback to MP3:', convErr);
+    return { buffer: combinedMp3, contentType: 'audio/mpeg' };
+  } finally {
+    fs.promises.unlink(tmpIn).catch(() => {});
+    fs.promises.unlink(tmpOut).catch(() => {});
+  }
 };
 
 // Endpoint: /api/tts/audio (Audio download and streaming for real speech WAV & MP3)

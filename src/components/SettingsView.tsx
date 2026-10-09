@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppSettings, User } from '../types';
 import {
   Sun,
@@ -16,7 +16,14 @@ import {
   User as UserIcon,
   LogOut,
   Zap,
+  Globe,
+  Check,
+  Volume2,
+  Key,
+  AudioWaveform,
 } from 'lucide-react';
+import { SUPPORTED_LANGUAGES, getLanguage, t, getTtsCode } from '../utils/i18n';
+import { playSpeechAudio } from '../utils/tts';
 
 interface SettingsViewProps {
   currentUser: User;
@@ -82,6 +89,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <UserIcon className="w-3.5 h-3.5" />
           Switch Profile / Login
         </button>
+      </div>
+
+      {/* Multi-Language & Regional Dialect Support */}
+      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Multi-Language Support & Speech Dialects
+            </h3>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            {getLanguage(settings.language || 'en').flag} {getLanguage(settings.language || 'en').nativeName}
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Select your desired language for application navigation, Voice Studio scripts, and Text-to-Speech pronunciation engine.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
+          {SUPPORTED_LANGUAGES.map((lang) => {
+            const isSelected = (settings.language || 'en') === lang.code;
+            return (
+              <button
+                key={lang.code}
+                onClick={() => onUpdateSettings({ language: lang.code })}
+                className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                  isSelected
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm ring-1 ring-amber-500/30'
+                    : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="text-base shrink-0">{lang.flag}</span>
+                  <div className="truncate">
+                    <div className="text-xs font-bold truncate leading-tight">{lang.nativeName}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{lang.code.toUpperCase()}</div>
+                  </div>
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Appearance & Accessibility */}
@@ -304,6 +356,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Text-to-Speech & Voice Settings Section */}
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          {/* TTS API Key Details Card */}
+          <div className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-950/20 border border-amber-500/20 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  Text-to-Speech & Audio API Key
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30">
+                ACTIVE & CONFIGURED
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg text-slate-700 dark:text-slate-300">
+                sk-or-v1-06fb...58c
+              </span>
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">
+                <AudioWaveform className="w-3.5 h-3.5" /> 16-Bit PCM WAV & MP3
+              </span>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-900 dark:text-white">

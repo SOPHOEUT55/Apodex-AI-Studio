@@ -3,6 +3,7 @@
 export interface TTSOptions {
   voice?: SpeechSynthesisVoice | null;
   voiceName?: string;
+  lang?: string;
   rate?: number; // 0.5 to 2.0, default 1.0
   pitch?: number; // 0.5 to 1.5, default 1.0
   volume?: number; // 0.0 to 1.0, default 1.0
@@ -147,9 +148,9 @@ export function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
 }
 
 /**
- * Finds the most natural English voice available in the client system
+ * Finds the most natural voice available in the client system for the requested language
  */
-export function findBestVoice(voices: SpeechSynthesisVoice[], preferredName?: string): SpeechSynthesisVoice | null {
+export function findBestVoice(voices: SpeechSynthesisVoice[], preferredName?: string, lang = 'en'): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
 
   if (preferredName) {
@@ -157,18 +158,28 @@ export function findBestVoice(voices: SpeechSynthesisVoice[], preferredName?: st
     if (exact) return exact;
   }
 
-  // Priority search: Google / Microsoft / Natural / Samantha / English
-  const priorityTerms = ['natural', 'google us english', 'google', 'samantha', 'jenny', 'guy', 'david', 'en-us', 'en'];
-  for (const term of priorityTerms) {
-    const found = voices.find(
-      (v) => (v.name.toLowerCase().includes(term) || v.lang.toLowerCase().includes(term)) && v.lang.startsWith('en')
+  const langPrefix = lang.split('-')[0].toLowerCase();
+
+  // Search within requested language first
+  const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
+  if (langVoices.length > 0) {
+    const natural = langVoices.find((v) =>
+      v.name.toLowerCase().includes('natural') ||
+      v.name.toLowerCase().includes('google') ||
+      v.name.toLowerCase().includes('premium') ||
+      v.name.toLowerCase().includes('samantha')
     );
+    return natural || langVoices[0];
+  }
+
+  // Priority search: Google / Natural / Samantha
+  const priorityTerms = ['natural', 'google', 'premium', 'samantha', 'jenny', 'guy'];
+  for (const term of priorityTerms) {
+    const found = voices.find((v) => v.name.toLowerCase().includes(term));
     if (found) return found;
   }
 
-  // Fallback to first English voice or first available voice
-  const englishVoice = voices.find((v) => v.lang.startsWith('en'));
-  return englishVoice || voices[0] || null;
+  return voices[0] || null;
 }
 
 let activeUtterance: SpeechSynthesisUtterance | null = null;
@@ -188,12 +199,14 @@ export async function speakText(text: string, options: TTSOptions = {}): Promise
   if (!cleaned) return;
 
   const voices = await getAvailableVoices();
-  const selectedVoice = options.voice || findBestVoice(voices, options.voiceName);
+  const selectedVoice = options.voice || findBestVoice(voices, options.voiceName, options.lang || 'en');
 
   const utterance = new SpeechSynthesisUtterance(cleaned);
   if (selectedVoice) {
     utterance.voice = selectedVoice;
-    utterance.lang = selectedVoice.lang || 'en-US';
+    utterance.lang = selectedVoice.lang || options.lang || 'en-US';
+  } else if (options.lang) {
+    utterance.lang = options.lang;
   }
 
   utterance.rate = Math.max(0.5, Math.min(2.0, options.rate ?? 1.0));
@@ -281,12 +294,15 @@ export function isSpeechRecognitionSupported(): boolean {
 /**
  * Creates and starts speech-to-text recognition
  */
-export function startVoiceRecognition(callbacks: {
-  onResult: (transcript: string, isFinal: boolean) => void;
-  onError?: (error: any) => void;
-  onEnd?: () => void;
-  onStart?: () => void;
-}): { stop: () => void } {
+export function startVoiceRecognition(
+  callbacks: {
+    onResult: (transcript: string, isFinal: boolean) => void;
+    onError?: (error: any) => void;
+    onEnd?: () => void;
+    onStart?: () => void;
+  },
+  lang = 'en-US'
+): { stop: () => void } {
   if (!isSpeechRecognitionSupported()) {
     throw new Error('Speech recognition is not supported in this browser.');
   }
@@ -296,7 +312,7 @@ export function startVoiceRecognition(callbacks: {
 
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.lang = 'en-US';
+  recognition.lang = lang || 'en-US';
 
   recognition.onstart = () => {
     callbacks.onStart?.();
@@ -374,11 +390,12 @@ export async function fetchSpeechAudioBlob(
 
   // If WAV was requested and server responded with audio/wav
   if (format === 'wav') {
-    if (contentType.includes('audio/wav') || isWavHeader(arrayBuffer)) {
+    if ((contentType.includes('audio/wav') || contentType.includes('audio/x-wav')) && isWavHeader(arrayBuffer)) {
       return new Blob([arrayBuffer], { type: 'audio/wav' });
     }
 
-    // Server returned audio/mpeg (MP3). Decode in browser using AudioContext to produce authentic uncompressed PCM WAV
+    // Server returned audio/mpeg (MP3) or unseekable header.
+    // Decode in browser using AudioContext to produce authentic uncompressed PCM WAV
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -396,12 +413,15 @@ export async function fetchSpeechAudioBlob(
 }
 
 function isWavHeader(buffer: ArrayBuffer): boolean {
-  if (buffer.byteLength < 12) return false;
+  if (buffer.byteLength < 44) return false;
   const view = new DataView(buffer);
   // RIFF header
   const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
   const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
-  return riff === 'RIFF' && wave === 'WAVE';
+  const riffSize = view.getUint32(4, true);
+  // Check that size is valid and not 0xFFFFFFFF pipe artifact
+  const isValidSize = riffSize > 0 && riffSize !== 0xffffffff;
+  return riff === 'RIFF' && wave === 'WAVE' && isValidSize;
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {
@@ -418,8 +438,8 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
 /**
  * Downloads authentic high-quality speech audio file (.wav) of the given text
  */
-export async function downloadSpeechWav(text: string, title = 'ai-speech-audio'): Promise<void> {
-  const blob = await fetchSpeechAudioBlob(text, 'wav');
+export async function downloadSpeechWav(text: string, title = 'ai-speech-audio', lang = 'en'): Promise<void> {
+  const blob = await fetchSpeechAudioBlob(text, 'wav', lang);
   const safeTitle = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'ai-speech';
   triggerBlobDownload(blob, `${safeTitle}.wav`);
 }
@@ -427,8 +447,8 @@ export async function downloadSpeechWav(text: string, title = 'ai-speech-audio')
 /**
  * Downloads authentic high-quality speech audio file (.mp3) of the given text
  */
-export async function downloadSpeechMp3(text: string, title = 'ai-speech-audio'): Promise<void> {
-  const blob = await fetchSpeechAudioBlob(text, 'mp3');
+export async function downloadSpeechMp3(text: string, title = 'ai-speech-audio', lang = 'en'): Promise<void> {
+  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang);
   const safeTitle = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'ai-speech';
   triggerBlobDownload(blob, `${safeTitle}.mp3`);
 }
@@ -436,8 +456,8 @@ export async function downloadSpeechMp3(text: string, title = 'ai-speech-audio')
 /**
  * Plays the real high-fidelity speech audio directly using HTML5 Audio
  */
-export async function playSpeechAudio(text: string): Promise<HTMLAudioElement> {
-  const blob = await fetchSpeechAudioBlob(text, 'mp3');
+export async function playSpeechAudio(text: string, lang = 'en'): Promise<HTMLAudioElement> {
+  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang);
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   audio.onended = () => URL.revokeObjectURL(url);

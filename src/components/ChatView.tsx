@@ -10,6 +10,7 @@ import {
   isSpeechActive,
   downloadSpeechWav,
 } from '../utils/tts';
+import { getTtsCode, t } from '../utils/i18n';
 import {
   Send,
   Square,
@@ -48,6 +49,7 @@ interface ChatViewProps {
   onExportConversation: (format: 'markdown' | 'json') => void;
   onSwitchModel?: (modelId: string) => void;
   onOpenInPythonLab?: (code: string) => void;
+  language?: string;
 }
 
 const QUICK_SUGGESTIONS = [
@@ -72,6 +74,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onExportConversation,
   onSwitchModel,
   onOpenInPythonLab,
+  language = 'en',
 }) => {
   const [inputText, setInputText] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -119,7 +122,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     try {
       setSpeakingMsgId(msgId);
+      const ttsLang = getTtsCode(language);
       await speakText(content, {
+        lang: ttsLang,
         onStart: () => setSpeakingMsgId(msgId),
         onEnd: () => setSpeakingMsgId(null),
         onError: () => setSpeakingMsgId(null),
@@ -132,7 +137,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handleDownloadSpeech = async (msgId: string, content: string) => {
     try {
       setDownloadingMsgId(msgId);
-      await downloadSpeechWav(content, 'ai-speech-response');
+      const ttsLang = getTtsCode(language);
+      await downloadSpeechWav(content, 'ai-speech-response', ttsLang);
     } catch (err: any) {
       console.error('Download speech audio error:', err);
     } finally {
@@ -153,17 +159,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
         return;
       }
       try {
-        const recognizer = startVoiceRecognition({
-          onStart: () => setIsListening(true),
-          onResult: (transcript, isFinal) => {
-            setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-            if (isFinal) {
-              setIsListening(false);
-            }
+        const ttsLang = getTtsCode(language);
+        const recognizer = startVoiceRecognition(
+          {
+            onStart: () => setIsListening(true),
+            onResult: (transcript, isFinal) => {
+              setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+              if (isFinal) {
+                setIsListening(false);
+              }
+            },
+            onEnd: () => setIsListening(false),
+            onError: () => setIsListening(false),
           },
-          onEnd: () => setIsListening(false),
-          onError: () => setIsListening(false),
-        });
+          ttsLang
+        );
         recognitionStopperRef.current = recognizer.stop;
       } catch {
         setIsListening(false);

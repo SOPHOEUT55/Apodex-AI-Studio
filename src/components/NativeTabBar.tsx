@@ -1,25 +1,28 @@
 import React from 'react';
 import { ActiveTab } from '../types';
 import { LayoutDashboard, MessageSquare, Terminal, Volume2, Clock, Sliders, User as UserIcon } from 'lucide-react';
+import { t } from '../utils/i18n';
 
 interface NativeTabBarProps {
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
   unreadCount?: number;
+  language?: string;
 }
 
 export const NativeTabBar: React.FC<NativeTabBarProps> = ({
   activeTab,
   onTabChange,
   unreadCount = 0,
+  language = 'en',
 }) => {
   const tabs = [
-    { id: 'dashboard' as ActiveTab, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'chat' as ActiveTab, label: 'Chat', icon: MessageSquare, badge: unreadCount },
-    { id: 'python' as ActiveTab, label: 'Python Lab', icon: Terminal },
-    { id: 'tts' as ActiveTab, label: 'Voice Studio', icon: Volume2 },
-    { id: 'history' as ActiveTab, label: 'History', icon: Clock },
-    { id: 'settings' as ActiveTab, label: 'Settings', icon: Sliders },
+    { id: 'dashboard' as ActiveTab, label: t('dashboard', language), icon: LayoutDashboard },
+    { id: 'chat' as ActiveTab, label: t('chat', language), icon: MessageSquare, badge: unreadCount },
+    { id: 'python' as ActiveTab, label: t('pythonLab', language), icon: Terminal },
+    { id: 'tts' as ActiveTab, label: t('voiceStudio', language), icon: Volume2 },
+    { id: 'history' as ActiveTab, label: t('history', language), icon: Clock },
+    { id: 'settings' as ActiveTab, label: t('settings', language), icon: Sliders },
   ];
 
   return (

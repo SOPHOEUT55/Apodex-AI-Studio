@@ -66,6 +66,7 @@ export interface AppSettings {
   systemPromptPreset: string;
   temperature: number;
   defaultModelId: string;
+  language?: string;
   autoReadAloud?: boolean;
   ttsVoice?: string;
   ttsRate?: number;

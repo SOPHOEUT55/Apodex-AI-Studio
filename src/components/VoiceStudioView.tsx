@@ -19,6 +19,13 @@ import {
 } from '../utils/tts';
 import { AVAILABLE_MODELS } from '../utils/models';
 import {
+  SUPPORTED_LANGUAGES,
+  getLanguage,
+  t,
+  getPresetScripts,
+  getTtsCode,
+} from '../utils/i18n';
+import {
   Volume2,
   VolumeX,
   Play,
@@ -37,6 +44,8 @@ import {
   Radio,
   Send,
   Zap,
+  Globe,
+  Languages,
 } from 'lucide-react';
 
 interface VoiceStudioViewProps {
@@ -44,38 +53,21 @@ interface VoiceStudioViewProps {
   currentModelId: string;
   onSelectModel: (modelId: string) => void;
   onNavigateToChat: (initialPrompt?: string) => void;
+  language?: string;
+  onSelectLanguage?: (lang: string) => void;
 }
-
-const PRESET_SCRIPTS = [
-  {
-    title: 'Executive AI Briefing',
-    text: 'Good morning. Today our hybrid reasoning clusters processed long-horizon forecasting models with zero regression. NVIDIA Nemotron 3 Ultra and Apodex 1.1 Mini have completed benchmark simulations with full chain of thought verification.',
-    category: 'Briefing',
-  },
-  {
-    title: 'Python Program Walkthrough',
-    text: 'Let us review the asynchronous pipeline. The Python execution sandbox isolates user scripts inside temporary sub-processes, capturing standard output, error streams, and memory boundaries within a ten-second safety window.',
-    category: 'Technical',
-  },
-  {
-    title: 'Multimodal Voice & Omni Reasoning',
-    text: 'Welcome to Mistral Voxtral and Nemotron Nano Omni. These multimodal architectures bridge spoken natural language, high-throughput text streaming, and deterministic mathematical verification in real time.',
-    category: 'Voice AI',
-  },
-  {
-    title: 'Probabilistic Forecasting',
-    text: 'Based on multi-step Monte Carlo sampling, the 90th percentile confidence interval indicates a 78% probability of sustained efficiency gains across distributed edge containers by Q4.',
-    category: 'Analytics',
-  },
-];
 
 export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
   currentUser,
   currentModelId,
   onSelectModel,
   onNavigateToChat,
+  language = 'en',
+  onSelectLanguage,
 }) => {
-  const [text, setText] = useState(PRESET_SCRIPTS[0].text);
+  const [activeLang, setActiveLang] = useState<string>(language || 'en');
+  const presetScripts = getPresetScripts(activeLang);
+  const [text, setText] = useState<string>(() => presetScripts[0]?.text || '');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
   const [selectedPresetId, setSelectedPresetId] = useState<string>('studio-clarity');
@@ -94,20 +86,33 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
   const [sttTranscript, setSttTranscript] = useState<string>('');
   const recognitionStopperRef = useRef<(() => void) | null>(null);
 
-  // Load voices on mount
+  // Sync external language changes
+  useEffect(() => {
+    if (language && language !== activeLang) {
+      setActiveLang(language);
+      const scripts = getPresetScripts(language);
+      if (scripts.length > 0) {
+        setText(scripts[0].text);
+      }
+    }
+  }, [language]);
+
+  // Load voices on mount and prioritize active language
   useEffect(() => {
     getAvailableVoices().then((loaded) => {
       setVoices(loaded);
-      if (loaded.length > 0 && !selectedVoiceName) {
-        // Pick high quality default
-        const best = loaded.find(
+      if (loaded.length > 0) {
+        const langPrefix = activeLang.split('-')[0].toLowerCase();
+        const bestForLang = loaded.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+        const generalBest = loaded.find(
           (v) =>
             v.lang.startsWith('en') &&
             (v.name.toLowerCase().includes('natural') ||
               v.name.toLowerCase().includes('google') ||
               v.name.toLowerCase().includes('samantha'))
         ) || loaded[0];
-        setSelectedVoiceName(best.name);
+
+        setSelectedVoiceName((bestForLang || generalBest).name);
       }
     });
 
@@ -117,11 +122,21 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
         recognitionStopperRef.current();
       }
     };
-  }, []);
+  }, [activeLang]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleLanguageChange = (newLang: string) => {
+    setActiveLang(newLang);
+    onSelectLanguage?.(newLang);
+    const scripts = getPresetScripts(newLang);
+    if (scripts.length > 0) {
+      setText(scripts[0].text);
+      showToast(`${t('language', newLang)}: ${getLanguage(newLang).nativeName} (${getLanguage(newLang).flag})`);
+    }
   };
 
   const handleApplyPreset = (preset: VoicePreset) => {
@@ -146,12 +161,14 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
       setIsPaused(false);
 
       const targetVoice = voices.find((v) => v.name === selectedVoiceName) || null;
+      const ttsLang = getTtsCode(activeLang);
 
       await speakText(text, {
         voice: targetVoice,
         rate,
         pitch,
         volume,
+        lang: ttsLang,
         onStart: () => {
           setIsPlaying(true);
           setIsPaused(false);
@@ -202,13 +219,15 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
       return;
     }
 
+    const ttsLang = getTtsCode(activeLang);
+
     try {
       setIsDownloading(true);
-      showToast(`Synthesizing high-fidelity speech audio (.${fmt})...`);
+      showToast(`Synthesizing high-fidelity speech audio (.${fmt}) in ${getLanguage(activeLang).nativeName}...`);
       if (fmt === 'wav') {
-        await downloadSpeechWav(targetText, 'speech-sample-audio');
+        await downloadSpeechWav(targetText, 'speech-sample-audio', ttsLang);
       } else {
-        await downloadSpeechMp3(targetText, 'speech-sample-audio');
+        await downloadSpeechMp3(targetText, 'speech-sample-audio', ttsLang);
       }
       showToast(`Downloaded authentic speech audio (.${fmt})!`);
     } catch (e: any) {
@@ -232,10 +251,12 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
       return;
     }
 
+    const ttsLang = getTtsCode(activeLang);
+
     try {
-      showToast('Loading natural speech audio stream...');
+      showToast(`Loading speech audio stream in ${getLanguage(activeLang).nativeName}...`);
       setIsPlayingAudioPreview(true);
-      const audio = await playSpeechAudio(text);
+      const audio = await playSpeechAudio(text, ttsLang);
       audioPreviewRef.current = audio;
       audio.onended = () => {
         setIsPlayingAudioPreview(false);
@@ -264,18 +285,22 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
         showToast('Microphone dictation is not supported in this browser.');
         return;
       }
+      const ttsLang = getTtsCode(activeLang);
       try {
-        const recognizer = startVoiceRecognition({
-          onStart: () => setIsListening(true),
-          onResult: (transcript) => {
-            setSttTranscript(transcript);
+        const recognizer = startVoiceRecognition(
+          {
+            onStart: () => setIsListening(true),
+            onResult: (transcript) => {
+              setSttTranscript(transcript);
+            },
+            onEnd: () => setIsListening(false),
+            onError: (e) => {
+              setIsListening(false);
+              showToast('Voice input error: ' + (e.error || 'Permission denied'));
+            },
           },
-          onEnd: () => setIsListening(false),
-          onError: (e) => {
-            setIsListening(false);
-            showToast('Voice input error: ' + (e.error || 'Permission denied'));
-          },
-        });
+          ttsLang
+        );
         recognitionStopperRef.current = recognizer.stop;
       } catch (err: any) {
         showToast(err.message);
@@ -358,6 +383,46 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Multi-Language Voice & Content Selector Bar */}
+      <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-amber-500" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+              {t('multiLanguageSupport', activeLang)} & {t('language', activeLang)}
+            </h3>
+            <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              {getLanguage(activeLang).flag} {getLanguage(activeLang).nativeName} ({getLanguage(activeLang).ttsLang})
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            {t('multiLanguageDescription', activeLang)}
+          </p>
+        </div>
+
+        {/* Scrollable language pill options */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+          {SUPPORTED_LANGUAGES.map((langItem) => {
+            const isSelected = activeLang === langItem.code || activeLang.startsWith(langItem.code);
+            return (
+              <button
+                key={langItem.code}
+                onClick={() => handleLanguageChange(langItem.code)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                  isSelected
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 ring-1 ring-amber-400'
+                    : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60'
+                }`}
+              >
+                <span>{langItem.flag}</span>
+                <span>{langItem.nativeName}</span>
+                <span className="text-[9px] opacity-75 font-mono">({langItem.code})</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -447,16 +512,22 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
 
             {/* Quick Script Presets */}
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                Quick Script Templates
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Quick Script Templates ({getLanguage(activeLang).nativeName})
+                </span>
+                <span className="text-[10px] text-amber-500 font-semibold flex items-center gap-1">
+                  <span>{getLanguage(activeLang).flag}</span>
+                  <span>Native Content</span>
+                </span>
+              </div>
               <div className="flex flex-wrap gap-2">
-                {PRESET_SCRIPTS.map((preset, idx) => (
+                {presetScripts.map((preset) => (
                   <button
-                    key={idx}
+                    key={preset.id}
                     onClick={() => {
                       setText(preset.text);
-                      showToast(`Loaded "${preset.title}"`);
+                      showToast(`Loaded "${preset.title}" (${getLanguage(activeLang).name})`);
                     }}
                     className="px-2.5 py-1 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600 dark:hover:text-amber-400 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
                   >
@@ -610,23 +681,26 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
               <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                  Sample A: AI & Neural Reasoning
+                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                  <span className="truncate">{presetScripts[0]?.title || 'Sample A: AI Briefing'}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-bold shrink-0">
+                    {getLanguage(activeLang).code.toUpperCase()}
+                  </span>
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 italic">
-                  "Good morning. Today our hybrid reasoning clusters processed long-horizon forecasting models."
+                  "{presetScripts[0]?.text}"
                 </p>
                 <div className="flex items-center gap-2 pt-1">
                   <button
-                    onClick={() => handleDownload('wav', 'Good morning. Today our hybrid reasoning clusters processed long-horizon forecasting models with zero regression.')}
+                    onClick={() => handleDownload('wav', presetScripts[0]?.text)}
                     disabled={isDownloading}
-                    className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
                   >
                     <Download className="w-3 h-3" />
                     Download Sample .WAV
                   </button>
                   <button
-                    onClick={() => playSpeechAudio('Good morning. Today our hybrid reasoning clusters processed long-horizon forecasting models with zero regression.')}
+                    onClick={() => playSpeechAudio(presetScripts[0]?.text, getTtsCode(activeLang))}
                     className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                     title="Preview speech aloud"
                   >
@@ -636,15 +710,18 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
               </div>
 
               <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                  Sample B: Python Pipeline Brief
+                <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                  <span className="truncate">{presetScripts[1]?.title || 'Sample B: Technical Sandbox'}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-mono font-bold shrink-0">
+                    {getLanguage(activeLang).code.toUpperCase()}
+                  </span>
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 italic">
-                  "The Python execution sandbox isolates user scripts inside temporary sub-processes with safe boundaries."
+                  "{presetScripts[1]?.text}"
                 </p>
                 <div className="flex items-center gap-2 pt-1">
                   <button
-                    onClick={() => handleDownload('wav', 'The Python execution sandbox isolates user scripts inside temporary sub-processes with safe boundaries.')}
+                    onClick={() => handleDownload('wav', presetScripts[1]?.text)}
                     disabled={isDownloading}
                     className="flex-1 py-1.5 px-2 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                   >
@@ -652,7 +729,7 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
                     Download Sample .WAV
                   </button>
                   <button
-                    onClick={() => playSpeechAudio('The Python execution sandbox isolates user scripts inside temporary sub-processes with safe boundaries.')}
+                    onClick={() => playSpeechAudio(presetScripts[1]?.text, getTtsCode(activeLang))}
                     className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                     title="Preview speech aloud"
                   >
