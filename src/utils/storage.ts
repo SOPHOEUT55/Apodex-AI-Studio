@@ -41,6 +41,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   temperature: 0.7,
   defaultModelId: 'apodex/apodex-1.1-mini:free',
   language: 'en',
+  voiceGender: 'neutral',
+  khmerVoiceModelId: 'km-male-sokha',
 };
 
 // Storage Helpers

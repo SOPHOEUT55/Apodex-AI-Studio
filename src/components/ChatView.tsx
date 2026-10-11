@@ -50,6 +50,8 @@ interface ChatViewProps {
   onSwitchModel?: (modelId: string) => void;
   onOpenInPythonLab?: (code: string) => void;
   language?: string;
+  voiceGender?: 'male' | 'female' | 'neutral';
+  khmerVoiceModelId?: string;
 }
 
 const QUICK_SUGGESTIONS = [
@@ -75,6 +77,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSwitchModel,
   onOpenInPythonLab,
   language = 'en',
+  voiceGender = 'neutral',
+  khmerVoiceModelId = 'km-male-sokha',
 }) => {
   const [inputText, setInputText] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -125,6 +129,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const ttsLang = getTtsCode(language);
       await speakText(content, {
         lang: ttsLang,
+        gender: voiceGender,
+        voiceModelId: language === 'km' ? khmerVoiceModelId : undefined,
         onStart: () => setSpeakingMsgId(msgId),
         onEnd: () => setSpeakingMsgId(null),
         onError: () => setSpeakingMsgId(null),
@@ -138,7 +144,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     try {
       setDownloadingMsgId(msgId);
       const ttsLang = getTtsCode(language);
-      await downloadSpeechWav(content, 'ai-speech-response', ttsLang);
+      await downloadSpeechWav(content, 'ai-speech-response', ttsLang, voiceGender, language === 'km' ? khmerVoiceModelId : '');
     } catch (err: any) {
       console.error('Download speech audio error:', err);
     } finally {

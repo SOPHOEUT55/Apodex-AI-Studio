@@ -16,6 +16,10 @@ import {
   isSpeechRecognitionSupported,
   VOICE_PRESETS,
   VoicePreset,
+  KHMER_VOICE_MODELS,
+  KhmerVoiceModel,
+  getKhmerVoiceModels,
+  getKhmerVoiceModelById,
 } from '../utils/tts';
 import { AVAILABLE_MODELS } from '../utils/models';
 import {
@@ -70,10 +74,15 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
   const [text, setText] = useState<string>(() => presetScripts[0]?.text || '');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('studio-clarity');
-  const [rate, setRate] = useState<number>(1.0);
-  const [pitch, setPitch] = useState<number>(1.0);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('km-sokha-male');
+  const [rate, setRate] = useState<number>(0.98);
+  const [pitch, setPitch] = useState<number>(0.84);
   const [volume, setVolume] = useState<number>(1.0);
+
+  // Khmer Voice Models selection and preview
+  const [selectedKhmerModelId, setSelectedKhmerModelId] = useState<string>('km-male-sokha');
+  const [khmerGenderFilter, setKhmerGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [previewingModelId, setPreviewingModelId] = useState<string | null>(null);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -146,6 +155,54 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
     showToast(`Applied preset: ${preset.name}`);
   };
 
+  const handleSelectKhmerModel = (model: KhmerVoiceModel) => {
+    setSelectedKhmerModelId(model.id);
+    setPitch(model.pitch);
+    setRate(model.rate);
+    if (activeLang !== 'km') {
+      handleLanguageChange('km');
+    }
+    showToast(`Active Khmer Voice: ${model.name} (${model.gender === 'male' ? 'Men / បុរស' : 'Women / ស្ត្រី'})`);
+  };
+
+  const handlePreviewKhmerModel = async (model: KhmerVoiceModel) => {
+    if (previewingModelId === model.id && audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      audioPreviewRef.current = null;
+      setPreviewingModelId(null);
+      return;
+    }
+    try {
+      setPreviewingModelId(model.id);
+      showToast(`Previewing ${model.name} (${model.gender === 'male' ? 'Men' : 'Women'})...`);
+      const audio = await playSpeechAudio(model.sampleText, 'km', model.gender, model.id);
+      audioPreviewRef.current = audio;
+      audio.onended = () => {
+        setPreviewingModelId(null);
+        audioPreviewRef.current = null;
+      };
+      audio.onerror = () => {
+        setPreviewingModelId(null);
+        audioPreviewRef.current = null;
+        showToast('Sample playback failed');
+      };
+    } catch (e: any) {
+      setPreviewingModelId(null);
+      showToast('Error playing preview: ' + (e.message || ''));
+    }
+  };
+
+  const handleLoadModelScript = (model: KhmerVoiceModel) => {
+    setText(model.sampleText);
+    setSelectedKhmerModelId(model.id);
+    setPitch(model.pitch);
+    setRate(model.rate);
+    if (activeLang !== 'km') {
+      handleLanguageChange('km');
+    }
+    showToast(`Loaded ${model.name} sample text`);
+  };
+
   const handlePlay = async () => {
     if (!text.trim()) return;
 
@@ -162,6 +219,7 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
 
       const targetVoice = voices.find((v) => v.name === selectedVoiceName) || null;
       const ttsLang = getTtsCode(activeLang);
+      const activeKmModel = activeLang === 'km' ? getKhmerVoiceModelById(selectedKhmerModelId) : undefined;
 
       await speakText(text, {
         voice: targetVoice,
@@ -169,6 +227,8 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
         pitch,
         volume,
         lang: ttsLang,
+        gender: activeKmModel?.gender,
+        voiceModelId: activeKmModel?.id,
         onStart: () => {
           setIsPlaying(true);
           setIsPaused(false);
@@ -220,14 +280,17 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
     }
 
     const ttsLang = getTtsCode(activeLang);
+    const activeKmModel = activeLang === 'km' ? getKhmerVoiceModelById(selectedKhmerModelId) : undefined;
+    const gender = activeKmModel?.gender || 'neutral';
+    const voiceModel = activeKmModel?.id || '';
 
     try {
       setIsDownloading(true);
       showToast(`Synthesizing high-fidelity speech audio (.${fmt}) in ${getLanguage(activeLang).nativeName}...`);
       if (fmt === 'wav') {
-        await downloadSpeechWav(targetText, 'speech-sample-audio', ttsLang);
+        await downloadSpeechWav(targetText, `speech-${activeKmModel?.id || 'sample'}-audio`, ttsLang, gender, voiceModel);
       } else {
-        await downloadSpeechMp3(targetText, 'speech-sample-audio', ttsLang);
+        await downloadSpeechMp3(targetText, `speech-${activeKmModel?.id || 'sample'}-audio`, ttsLang, gender, voiceModel);
       }
       showToast(`Downloaded authentic speech audio (.${fmt})!`);
     } catch (e: any) {
@@ -252,11 +315,14 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
     }
 
     const ttsLang = getTtsCode(activeLang);
+    const activeKmModel = activeLang === 'km' ? getKhmerVoiceModelById(selectedKhmerModelId) : undefined;
+    const gender = activeKmModel?.gender || 'neutral';
+    const voiceModel = activeKmModel?.id || '';
 
     try {
       showToast(`Loading speech audio stream in ${getLanguage(activeLang).nativeName}...`);
       setIsPlayingAudioPreview(true);
-      const audio = await playSpeechAudio(text, ttsLang);
+      const audio = await playSpeechAudio(text, ttsLang, gender, voiceModel);
       audioPreviewRef.current = audio;
       audio.onended = () => {
         setIsPlayingAudioPreview(false);
@@ -421,6 +487,163 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
                 <span>{langItem.nativeName}</span>
                 <span className="text-[9px] opacity-75 font-mono">({langItem.code})</span>
               </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Best Khmer Voice Models Showcase Card (Men & Women) */}
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-indigo-950/20 dark:from-amber-950/30 dark:via-slate-900 dark:to-indigo-950/40 border-2 border-amber-500/30 shadow-md space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-amber-500/20">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🇰🇭</span>
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>{t('khmerVoiceModels', activeLang)}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black">
+                  MEN & WOMEN
+                </span>
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              {t('khmerVoiceModelsDesc', activeLang)}
+            </p>
+          </div>
+
+          {/* Gender Filter Tabs */}
+          <div className="flex items-center gap-1.5 bg-white/80 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0">
+            <button
+              onClick={() => setKhmerGenderFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                khmerGenderFilter === 'all'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              🌟 ទាំងអស់ ({KHMER_VOICE_MODELS.length})
+            </button>
+            <button
+              onClick={() => setKhmerGenderFilter('male')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                khmerGenderFilter === 'male'
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-cyan-600'
+              }`}
+            >
+              👨 សំឡេងបុរស ({getKhmerVoiceModels('male').length})
+            </button>
+            <button
+              onClick={() => setKhmerGenderFilter('female')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                khmerGenderFilter === 'female'
+                  ? 'bg-rose-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-rose-500'
+              }`}
+            >
+              👩 សំឡេងស្ត្រី ({getKhmerVoiceModels('female').length})
+            </button>
+          </div>
+        </div>
+
+        {/* Khmer Models Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {getKhmerVoiceModels(khmerGenderFilter).map((model) => {
+            const isSelected = selectedKhmerModelId === model.id && activeLang === 'km';
+            const isPreviewing = previewingModelId === model.id;
+            const isMale = model.gender === 'male';
+
+            return (
+              <div
+                key={model.id}
+                className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                  isSelected
+                    ? 'border-amber-500 bg-white dark:bg-slate-900 shadow-md ring-2 ring-amber-500/50'
+                    : 'border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:border-amber-500/40'
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+                        {model.avatar}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                            {model.khmerName} ({model.name.split(' ')[0]})
+                          </h4>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                          )}
+                        </div>
+                        <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                          {model.khmerRole}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        isMale
+                          ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30'
+                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                      }`}
+                    >
+                      {isMale ? '👨 បុរស (Men)' : '👩 ស្ត្រី (Women)'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                    {model.khmerDescription}
+                  </p>
+
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">
+                      Pitch: {model.pitch.toFixed(2)}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">
+                      Rate: {model.rate.toFixed(2)}x
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">
+                      {model.badge}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Action Buttons */}
+                <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    onClick={() => handlePreviewKhmerModel(model)}
+                    className={`py-1.5 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isPreviewing
+                        ? 'bg-amber-500 text-slate-950 animate-pulse'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    title="Listen to authentic synthesized sample voice for this model"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{isPreviewing ? 'កំពុងចាក់...' : 'ស្តាប់គំរូ'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectKhmerModel(model)}
+                    className={`py-1.5 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'bg-slate-900 dark:bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-white'
+                    }`}
+                  >
+                    {isSelected ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-slate-950" />
+                        <span>បានជ្រើសរើស</span>
+                      </>
+                    ) : (
+                      <span>ជ្រើសរើសសំឡេង</span>
+                    )}
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -743,6 +966,64 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
 
         {/* Right Column: Audio Tuning & Voice Profiles */}
         <div className="space-y-4">
+          {/* Active Khmer Model Indicator Card */}
+          {activeLang === 'km' && (
+            <div className="p-4 rounded-3xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🇰🇭</span>
+                  <span>{t('activeKhmerVoice', activeLang)}</span>
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-slate-950">
+                  {getKhmerVoiceModelById(selectedKhmerModelId)?.gender === 'male' ? '👨 បុរស (Men)' : '👩 ស្ត្រី (Women)'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-3xl p-2 rounded-2xl bg-white dark:bg-slate-800 shadow-sm">
+                  {getKhmerVoiceModelById(selectedKhmerModelId)?.avatar || '🎙️'}
+                </span>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    {getKhmerVoiceModelById(selectedKhmerModelId)?.khmerName} ({getKhmerVoiceModelById(selectedKhmerModelId)?.name})
+                  </h4>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                    {getKhmerVoiceModelById(selectedKhmerModelId)?.khmerRole}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                <button
+                  onClick={() => {
+                    const sokha = getKhmerVoiceModelById('km-male-sokha');
+                    if (sokha) handleSelectKhmerModel(sokha);
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-center font-bold border transition-colors cursor-pointer ${
+                    selectedKhmerModelId === 'km-male-sokha'
+                      ? 'bg-cyan-600 text-white border-cyan-500'
+                      : 'bg-white/80 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  👨 សុខា (Men)
+                </button>
+                <button
+                  onClick={() => {
+                    const bopha = getKhmerVoiceModelById('km-female-bopha');
+                    if (bopha) handleSelectKhmerModel(bopha);
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-center font-bold border transition-colors cursor-pointer ${
+                    selectedKhmerModelId === 'km-female-bopha'
+                      ? 'bg-rose-500 text-white border-rose-400'
+                      : 'bg-white/80 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  👩 បុប្ផា (Women)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Voice Profiles Card */}
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">

@@ -73,6 +73,8 @@ export interface AppSettings {
   ttsPitch?: number;
   ttsVolume?: number;
   enableVoiceInput?: boolean;
+  voiceGender?: 'male' | 'female' | 'neutral';
+  khmerVoiceModelId?: string;
 }
 
 export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile' | 'tts';

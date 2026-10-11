@@ -598,6 +598,8 @@ export default function App() {
               setActiveTab('python');
             }}
             language={settings.language || 'en'}
+            voiceGender={settings.voiceGender}
+            khmerVoiceModelId={settings.khmerVoiceModelId}
           />
         );
       case 'python':

@@ -23,7 +23,7 @@ import {
   AudioWaveform,
 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, getLanguage, t, getTtsCode } from '../utils/i18n';
-import { playSpeechAudio } from '../utils/tts';
+import { playSpeechAudio, KHMER_VOICE_MODELS, getKhmerVoiceModelById } from '../utils/tts';
 
 interface SettingsViewProps {
   currentUser: User;
@@ -376,6 +376,106 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">
                 <AudioWaveform className="w-3.5 h-3.5" /> 16-Bit PCM WAV & MP3
               </span>
+            </div>
+          </div>
+
+          {/* Voice Gender Selection */}
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              Default Voice Gender (ភេទនៃសំឡេង)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'neutral', label: '🌟 Auto / Neutral' },
+                { id: 'male', label: '👨 Men (បុរស)' },
+                { id: 'female', label: '👩 Women (ស្ត្រី)' },
+              ].map((g) => {
+                const isSelected = (settings.voiceGender || 'neutral') === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => onUpdateSettings({ voiceGender: g.id as any })}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                      isSelected
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30'
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Default Khmer Voice Model */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span>🇰🇭</span>
+                  <span>Khmer Voice Model (ម៉ូដែលសំឡេងខ្មែរ: បុរស & ស្ត្រី)</span>
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Select your default male or female Cambodian voice model
+                </p>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
+                6 MODELS
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {KHMER_VOICE_MODELS.map((model) => {
+                const isSelected = (settings.khmerVoiceModelId || 'km-male-sokha') === model.id;
+                const isMale = model.gender === 'male';
+
+                return (
+                  <div
+                    key={model.id}
+                    onClick={() => onUpdateSettings({
+                      khmerVoiceModelId: model.id,
+                      voiceGender: model.gender,
+                    })}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      isSelected
+                        ? 'border-amber-500 bg-amber-500/10 text-slate-900 dark:text-white ring-1 ring-amber-500/30'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-amber-500/30 bg-white dark:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-xl shrink-0">{model.avatar}</span>
+                      <div className="truncate">
+                        <div className="text-xs font-bold truncate flex items-center gap-1">
+                          <span>{model.khmerName} ({model.name.split(' ')[0]})</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                            isMale ? 'bg-cyan-500/20 text-cyan-500' : 'bg-rose-500/20 text-rose-500'
+                          }`}>
+                            {isMale ? 'បុរស' : 'ស្ត្រី'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate">{model.khmerRole}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playSpeechAudio(model.sampleText, 'km', model.gender, model.id);
+                        }}
+                        className="p-1 rounded-lg hover:bg-amber-500/20 text-amber-500 transition-colors"
+                        title="Preview sample voice"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-500" />}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

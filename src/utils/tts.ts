@@ -4,6 +4,8 @@ export interface TTSOptions {
   voice?: SpeechSynthesisVoice | null;
   voiceName?: string;
   lang?: string;
+  gender?: 'male' | 'female' | 'neutral';
+  voiceModelId?: string;
   rate?: number; // 0.5 to 2.0, default 1.0
   pitch?: number; // 0.5 to 1.5, default 1.0
   volume?: number; // 0.0 to 1.0, default 1.0
@@ -26,7 +28,154 @@ export interface VoicePreset {
   description: string;
 }
 
+export interface KhmerVoiceModel {
+  id: string;
+  name: string;
+  khmerName: string;
+  gender: 'male' | 'female';
+  role: string;
+  khmerRole: string;
+  tone: string;
+  pitch: number;
+  rate: number;
+  description: string;
+  khmerDescription: string;
+  sampleText: string;
+  avatar: string;
+  badge: string;
+}
+
+export const KHMER_VOICE_MODELS: KhmerVoiceModel[] = [
+  // MEN VOICES (សំឡេងបុរសខ្មែរ)
+  {
+    id: 'km-male-sokha',
+    name: 'Sokha (សុខា)',
+    khmerName: 'សុខា',
+    gender: 'male',
+    role: 'Natural Conversational & Assistant',
+    khmerRole: 'សំឡេងសន្ទនាធម្មជាតិ & ជំនួយការ AI',
+    tone: 'Warm, deep baritone, authentic Cambodian pronunciation',
+    pitch: 0.84,
+    rate: 0.98,
+    description: 'Natural Cambodian male voice with warm resonance and smooth conversational pacing.',
+    khmerDescription: 'សំឡេងបុរសខ្មែរធម្មជាតិ រលូន ធ្ងន់ និងច្បាស់ល្អ សមរម្យសម្រាប់ការសន្ទនាទូទៅ និងជំនួយការ។',
+    sampleText: 'សួស្តីបងប្អូនទាំងអស់គ្នា! ខ្ញុំបាទឈ្មោះសុខា ជាម៉ូដែលសំឡេងបុរសខ្មែរ រីករាយណាស់ដែលបានបម្រើការជូនលោកអ្នក។',
+    avatar: '👨‍💼',
+    badge: 'បុរសធម្មជាតិ',
+  },
+  {
+    id: 'km-male-piseth',
+    name: 'Piseth (ពិសិដ្ឋ)',
+    khmerName: 'ពិសិដ្ឋ',
+    gender: 'male',
+    role: 'News Anchor & Technical Briefing',
+    khmerRole: 'អ្នកអានព័ត៌មាន & បទបង្ហាញបច្ចេកទេស',
+    tone: 'Crisp, articulate, authoritative broadcast delivery',
+    pitch: 0.88,
+    rate: 1.05,
+    description: 'Authoritative male broadcast anchor, perfect for technical briefings and formal reports.',
+    khmerDescription: 'សំឡេងបុរសអ្នកអានព័ត៌មាន ស្វាហាប់ ម៉ឺងម៉ាត់ និងច្បាស់លាស់ សម្រាប់របាយការណ៍បច្ចេកវិទ្យា។',
+    sampleText: 'សូមស្វាគមន៍មកកាន់របាយការណ៍សង្ខេបបច្ចេកវិទ្យាប្រចាំថ្ងៃ និងការវិភាគលើប្រព័ន្ធបញ្ញាសិប្បនិម្មិតកម្រិតខ្ពស់។',
+    avatar: '🎙️',
+    badge: 'អ្នកអានព័ត៌មាន',
+  },
+  {
+    id: 'km-male-khemara',
+    name: 'Khemara (ខេមរា)',
+    khmerName: 'ខេមរា',
+    gender: 'male',
+    role: 'Deep Resonance & Long-Form Narration',
+    khmerRole: 'សំឡេងធំទូលាយ & ការនិទានរឿងស៊ីជម្រៅ',
+    tone: 'Deep bass-baritone, calm philosophical resonance',
+    pitch: 0.78,
+    rate: 0.92,
+    description: 'Deep cinematic bass-baritone designed for philosophical reasoning, deep audiobooks, and history.',
+    khmerDescription: 'សំឡេងបុរសធ្ងន់ជ្រៅ អន្លង់អន្លោច សមរម្យសម្រាប់ការនិទានរឿង និងហេតុផលស៊ីជម្រៅ។',
+    sampleText: 'តាមរយៈការវិភាគទិន្នន័យយ៉ាងល្អិតល្អន់ យើងមើលឃើញពីចក្ខុវិស័យវែងឆ្ងាយនៃការអភិវឌ្ឍន៍សង្គមឌីជីថល។',
+    avatar: '📚',
+    badge: 'សំឡេងធំនិទាន',
+  },
+  // WOMEN VOICES (សំឡេងស្ត្រីខ្មែរ)
+  {
+    id: 'km-female-bopha',
+    name: 'Bopha (បុប្ផា)',
+    khmerName: 'បុប្ផា',
+    gender: 'female',
+    role: 'Natural Daily Assistant & Friendly Host',
+    khmerRole: 'ជំនួយការប្រចាំថ្ងៃ & រួសរាយរាក់ទាក់',
+    tone: 'Sweet, gentle, expressive soprano with authentic accent',
+    pitch: 1.14,
+    rate: 1.02,
+    description: 'Sweet, friendly Cambodian female voice with crystal clarity, perfect for personal assistance.',
+    khmerDescription: 'សំឡេងស្ត្រីខ្មែរស្រទន់ ពិរោះ រស់រវើក និងស្តង់ដារ សម្រាប់ការឆ្លើយសំណួរ និងជំនួយការ។',
+    sampleText: 'ជម្រាបសួរចាស! នាងខ្ញុំឈ្មោះបុប្ផា រីករាយណាស់ដែលបានជួយឆ្លើយសំណួរ និងបកស្រាយជូនលោកអ្នកនៅថ្ងៃនេះ។',
+    avatar: '👩‍💼',
+    badge: 'ស្ត្រីធម្មជាតិ',
+  },
+  {
+    id: 'km-female-chavy',
+    name: 'Chavy (ចរិយា)',
+    khmerName: 'ចរិយា',
+    gender: 'female',
+    role: 'Broadcast Anchor & Executive Host',
+    khmerRole: 'អ្នកអានព័ត៌មាន & បទបង្ហាញផ្លូវការ',
+    tone: 'Bright, polished, confident professional cadence',
+    pitch: 1.10,
+    rate: 1.08,
+    description: 'Polished female broadcast host for executive overviews, educational modules, and dynamic updates.',
+    khmerDescription: 'សំឡេងស្ត្រីអ្នកអានព័ត៌មាន ច្បាស់លាស់ ស្វាហាប់ និងប្រកបដោយវិជ្ជាជីវៈកម្រិតខ្ពស់។',
+    sampleText: 'សូមស្វាគមន៍មកកាន់ការផ្សាយផ្ទាល់ព័ត៌មានវិទ្យាសាស្ត្រ និងការច្នៃប្រឌិតថ្មីៗនៃពិភពបច្ចេកវិទ្យាសកល។',
+    avatar: '📻',
+    badge: 'អ្នកអានព័ត៌មាន',
+  },
+  {
+    id: 'km-female-kalyan',
+    name: 'Kalyan (កល្យាណ)',
+    khmerName: 'កល្យាណ',
+    gender: 'female',
+    role: 'Warm Poetic Narrator & Storyteller',
+    khmerRole: 'អ្នកនិទានរឿង & អក្សរសិល្ប៍វប្បធម៌',
+    tone: 'Soothing, lyrical, emotionally expressive delivery',
+    pitch: 1.06,
+    rate: 0.94,
+    description: 'Warm storytelling female voice with soothing lyrical cadence for cultural tales and literature.',
+    khmerDescription: 'សំឡេងស្ត្រីស្រទន់ ពិរោះរណ្តំ សមរម្យសម្រាប់សៀវភៅជាសំឡេង កំណាព្យ និងរឿងនិទាន។',
+    sampleText: 'រាត្រីសមោសរដ៏ស្ងប់ស្ងាត់ នាំមកនូវគំនិតច្នៃប្រឌិត និងការស្រមើស្រមៃដ៏ស្រស់បំព្រងគ្មានដែនកំណត់។',
+    avatar: '🌸',
+    badge: 'អ្នកនិទានរឿង',
+  },
+];
+
+export function getKhmerVoiceModels(gender?: 'all' | 'male' | 'female'): KhmerVoiceModel[] {
+  if (!gender || gender === 'all') return KHMER_VOICE_MODELS;
+  return KHMER_VOICE_MODELS.filter((m) => m.gender === gender);
+}
+
+export function getKhmerVoiceModelById(id: string): KhmerVoiceModel | undefined {
+  return KHMER_VOICE_MODELS.find((m) => m.id === id);
+}
+
 export const VOICE_PRESETS: VoicePreset[] = [
+  {
+    id: 'km-sokha-male',
+    name: 'Khmer Male (សុខា - Sokha)',
+    lang: 'km',
+    gender: 'male',
+    tone: 'Natural resonant male baritone',
+    rate: 0.98,
+    pitch: 0.84,
+    description: 'Authentic Cambodian male voice with warm, deep natural pronunciation',
+  },
+  {
+    id: 'km-bopha-female',
+    name: 'Khmer Female (បុប្ផា - Bopha)',
+    lang: 'km',
+    gender: 'female',
+    tone: 'Clear, gentle, melodic female soprano',
+    rate: 1.02,
+    pitch: 1.14,
+    description: 'Authentic Cambodian female voice with sweet, crystal-clear delivery',
+  },
   {
     id: 'studio-clarity',
     name: 'Studio Clarity',
@@ -209,8 +358,12 @@ export async function speakText(text: string, options: TTSOptions = {}): Promise
     utterance.lang = options.lang;
   }
 
-  utterance.rate = Math.max(0.5, Math.min(2.0, options.rate ?? 1.0));
-  utterance.pitch = Math.max(0.5, Math.min(1.5, options.pitch ?? 1.0));
+  const kmModel = options.voiceModelId ? getKhmerVoiceModelById(options.voiceModelId) : undefined;
+  const defaultPitch = kmModel?.pitch ?? (options.gender === 'male' ? 0.84 : options.gender === 'female' ? 1.14 : 1.0);
+  const defaultRate = kmModel?.rate ?? 1.0;
+
+  utterance.rate = Math.max(0.5, Math.min(2.0, options.rate ?? defaultRate));
+  utterance.pitch = Math.max(0.5, Math.min(1.5, options.pitch ?? defaultPitch));
   utterance.volume = Math.max(0.0, Math.min(1.0, options.volume ?? 1.0));
 
   utterance.onstart = () => {
@@ -367,7 +520,9 @@ export function startVoiceRecognition(
 export async function fetchSpeechAudioBlob(
   text: string,
   format: 'wav' | 'mp3' = 'wav',
-  lang: string = 'en'
+  lang: string = 'en',
+  gender: 'male' | 'female' | 'neutral' = 'neutral',
+  voiceModel = ''
 ): Promise<Blob> {
   const cleaned = cleanTextForSpeech(text);
   if (!cleaned) {
@@ -377,7 +532,7 @@ export async function fetchSpeechAudioBlob(
   const response = await fetch('/api/tts/audio', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: cleaned, format, lang }),
+    body: JSON.stringify({ text: cleaned, format, lang, gender, voiceModel }),
   });
 
   if (!response.ok) {
@@ -438,8 +593,14 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
 /**
  * Downloads authentic high-quality speech audio file (.wav) of the given text
  */
-export async function downloadSpeechWav(text: string, title = 'ai-speech-audio', lang = 'en'): Promise<void> {
-  const blob = await fetchSpeechAudioBlob(text, 'wav', lang);
+export async function downloadSpeechWav(
+  text: string,
+  title = 'ai-speech-audio',
+  lang = 'en',
+  gender: 'male' | 'female' | 'neutral' = 'neutral',
+  voiceModel = ''
+): Promise<void> {
+  const blob = await fetchSpeechAudioBlob(text, 'wav', lang, gender, voiceModel);
   const safeTitle = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'ai-speech';
   triggerBlobDownload(blob, `${safeTitle}.wav`);
 }
@@ -447,8 +608,14 @@ export async function downloadSpeechWav(text: string, title = 'ai-speech-audio',
 /**
  * Downloads authentic high-quality speech audio file (.mp3) of the given text
  */
-export async function downloadSpeechMp3(text: string, title = 'ai-speech-audio', lang = 'en'): Promise<void> {
-  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang);
+export async function downloadSpeechMp3(
+  text: string,
+  title = 'ai-speech-audio',
+  lang = 'en',
+  gender: 'male' | 'female' | 'neutral' = 'neutral',
+  voiceModel = ''
+): Promise<void> {
+  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang, gender, voiceModel);
   const safeTitle = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'ai-speech';
   triggerBlobDownload(blob, `${safeTitle}.mp3`);
 }
@@ -456,8 +623,13 @@ export async function downloadSpeechMp3(text: string, title = 'ai-speech-audio',
 /**
  * Plays the real high-fidelity speech audio directly using HTML5 Audio
  */
-export async function playSpeechAudio(text: string, lang = 'en'): Promise<HTMLAudioElement> {
-  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang);
+export async function playSpeechAudio(
+  text: string,
+  lang = 'en',
+  gender: 'male' | 'female' | 'neutral' = 'neutral',
+  voiceModel = ''
+): Promise<HTMLAudioElement> {
+  const blob = await fetchSpeechAudioBlob(text, 'mp3', lang, gender, voiceModel);
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   audio.onended = () => URL.revokeObjectURL(url);

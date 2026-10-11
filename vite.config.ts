@@ -337,8 +337,14 @@ function apiProxyPlugin(): Plugin {
           return;
         }
 
-        // Generate high-fidelity speech audio buffer (WAV or MP3)
-        const generateSpeechAudioBuffer = async (text: string, format: 'wav' | 'mp3' = 'wav', lang: string = 'en') => {
+        // Generate high-fidelity speech audio buffer (WAV or MP3) with Men/Women acoustic models
+        const generateSpeechAudioBuffer = async (
+          text: string,
+          format: 'wav' | 'mp3' = 'wav',
+          lang: string = 'en',
+          gender: string = 'neutral',
+          voiceModel: string = ''
+        ) => {
           let clean = text
             .replace(/```(?:python|ts|js|bash|json|html|css)?[\s\S]*?```/gi, ' code snippet ')
             .replace(/`([^`]+)`/g, '$1')
@@ -403,35 +409,56 @@ function apiProxyPlugin(): Plugin {
 
           const combinedMp3 = Buffer.concat(mp3Buffers);
 
-          if (format === 'mp3') {
+          // Determine audio filter based on voice gender or model
+          const isMale = gender === 'male' || voiceModel.toLowerCase().includes('male') || voiceModel.includes('sokha') || voiceModel.includes('piseth') || voiceModel.includes('khemara');
+          const isFemale = gender === 'female' || voiceModel.toLowerCase().includes('female') || voiceModel.includes('bopha') || voiceModel.includes('chavy') || voiceModel.includes('kalyan');
+
+          let audioFilter = '';
+          if (isMale) {
+            // Natural resonant male baritone filter
+            audioFilter = 'asetrate=24000*0.86,atempo=1/0.86,equalizer=f=200:t=q:w=1:g=3';
+          } else if (isFemale) {
+            // Bright, sweet female soprano filter
+            audioFilter = 'asetrate=24000*1.12,atempo=1/1.12,equalizer=f=3000:t=q:w=1:g=2';
+          }
+
+          if (format === 'mp3' && !audioFilter) {
             return { buffer: combinedMp3, contentType: 'audio/mpeg' };
           }
 
-          // Convert to WAV format using ffmpeg with a temporary seekable file
-          // This guarantees standard RIFF headers and exact PCM s16le data chunk sizes without 0xFFFFFFFF pipe corruption
+          // Convert using ffmpeg with temporary seekable file
           const tmpPrefix = `speech_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-          const tmpIn = path.join(os.tmpdir(), `${tmpPrefix}.mp3`);
-          const tmpOut = path.join(os.tmpdir(), `${tmpPrefix}.wav`);
+          const tmpIn = path.join(os.tmpdir(), `${tmpPrefix}.raw.mp3`);
+          const tmpOut = path.join(os.tmpdir(), `${tmpPrefix}.${format}`);
 
           try {
             await fs.promises.writeFile(tmpIn, combinedMp3);
+            const ffmpegArgs = ['-y', '-i', tmpIn];
+
+            if (audioFilter) {
+              ffmpegArgs.push('-af', audioFilter);
+            }
+
+            if (format === 'wav') {
+              ffmpegArgs.push('-acodec', 'pcm_s16le', '-ar', '24000', '-ac', '1', tmpOut);
+            } else {
+              ffmpegArgs.push('-ar', '24000', '-b:a', '192k', tmpOut);
+            }
+
             await new Promise<void>((resolve, reject) => {
-              const ff = spawn('ffmpeg', [
-                '-y',
-                '-i', tmpIn,
-                '-acodec', 'pcm_s16le',
-                '-ar', '24000',
-                '-ac', '1',
-                tmpOut,
-              ]);
+              const ff = spawn('ffmpeg', ffmpegArgs);
               ff.on('close', (code) => {
                 if (code === 0) resolve();
                 else reject(new Error(`ffmpeg conversion exited with code ${code}`));
               });
               ff.on('error', reject);
             });
-            const wavBuffer = await fs.promises.readFile(tmpOut);
-            return { buffer: wavBuffer, contentType: 'audio/wav' };
+
+            const processedBuffer = await fs.promises.readFile(tmpOut);
+            return {
+              buffer: processedBuffer,
+              contentType: format === 'wav' ? 'audio/wav' : 'audio/mpeg',
+            };
           } catch (convErr) {
             console.warn('ffmpeg conversion fallback to MP3:', convErr);
             return { buffer: combinedMp3, contentType: 'audio/mpeg' };
@@ -447,12 +474,16 @@ function apiProxyPlugin(): Plugin {
             let text = '';
             let format: 'wav' | 'mp3' = 'wav';
             let lang = 'en';
+            let gender = 'neutral';
+            let voiceModel = '';
 
             if (req.method === 'GET') {
               const parsedUrl = new URL(req.url, 'http://localhost:3000');
               text = parsedUrl.searchParams.get('text') || '';
               format = (parsedUrl.searchParams.get('format') || 'wav') as 'wav' | 'mp3';
               lang = parsedUrl.searchParams.get('lang') || 'en';
+              gender = parsedUrl.searchParams.get('gender') || 'neutral';
+              voiceModel = parsedUrl.searchParams.get('voiceModel') || '';
             } else if (req.method === 'POST') {
               let bodyBuffer = '';
               for await (const chunk of req) {
@@ -462,6 +493,8 @@ function apiProxyPlugin(): Plugin {
               text = body.text || '';
               format = (body.format || 'wav') as 'wav' | 'mp3';
               lang = body.lang || 'en';
+              gender = body.gender || 'neutral';
+              voiceModel = body.voiceModel || '';
             }
 
             if (!text.trim()) {
@@ -471,7 +504,7 @@ function apiProxyPlugin(): Plugin {
               return;
             }
 
-            const { buffer, contentType } = await generateSpeechAudioBuffer(text, format, lang);
+            const { buffer, contentType } = await generateSpeechAudioBuffer(text, format, lang, gender, voiceModel);
             const ext = contentType.includes('wav') ? 'wav' : 'mp3';
             res.setHeader('Content-Type', contentType);
             res.setHeader('Content-Disposition', `attachment; filename="speech-audio.${ext}"`);
