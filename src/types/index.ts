@@ -77,7 +77,23 @@ export interface AppSettings {
   khmerVoiceModelId?: string;
 }
 
-export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile' | 'tts';
+export type ActiveTab = 'dashboard' | 'chat' | 'python' | 'history' | 'settings' | 'profile' | 'tts' | 'media';
+
+export interface GeneratedMediaItem {
+  id: string;
+  type: 'image' | 'video';
+  prompt: string;
+  enhancedPrompt?: string;
+  url: string;
+  thumbnailUrl?: string;
+  model: string;
+  style?: string;
+  aspectRatio: string;
+  duration?: number;
+  motion?: string;
+  createdAt: number;
+  seed?: number;
+}
 
 export interface PythonExecutionResult {
   stdout: string;

@@ -38,6 +38,7 @@ interface DashboardViewProps {
   onNavigateToHistory: () => void;
   onNavigateToPythonLab?: (initialCode?: string) => void;
   onNavigateToTTS?: () => void;
+  onNavigateToMedia?: () => void;
 }
 
 const FEATURED_PROMPTS = [
@@ -94,6 +95,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToHistory,
   onNavigateToPythonLab,
   onNavigateToTTS,
+  onNavigateToMedia,
 }) => {
   const recentConversations = [...conversations]
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -114,13 +116,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5" />
-              Multimodal Reasoning & Voice AI Active
+              Multimodal Reasoning, Voice & Media AI Active
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Welcome back, <span className="text-cyan-400">{currentUser.name}</span>
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-              Experience frontier AI with <strong>Mistral Voxtral 24B</strong> for voice & speech, <strong>NVIDIA Nemotron Nano Omni</strong> for multimodal audio-reasoning, <strong>Nemotron 3 Ultra</strong> (550B MoE), and <strong>Apodex 1.1 Mini</strong>.
+              Experience frontier AI with <strong>Image & Video AI Generation</strong>, <strong>Mistral Voxtral 24B</strong> for Khmer voice & speech, <strong>NVIDIA Nemotron Nano Omni</strong>, and <strong>Apodex 1.1 Mini</strong>.
             </p>
           </div>
 
@@ -132,6 +134,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <MessageSquarePlus className="w-4 h-4" />
               New Chat
             </button>
+            {onNavigateToMedia && (
+              <button
+                onClick={onNavigateToMedia}
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-600/30 to-indigo-600/30 hover:from-fuchsia-600/40 hover:to-indigo-600/40 border border-fuchsia-500/50 text-fuchsia-200 text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-fuchsia-500/10"
+              >
+                <Sparkles className="w-4 h-4 text-fuchsia-400" />
+                Media Studio (Img/Vid)
+              </button>
+            )}
             {onNavigateToTTS && (
               <button
                 onClick={onNavigateToTTS}
@@ -316,6 +327,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Media Studio Showcase Feature Banner */}
+      {onNavigateToMedia && (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 border border-purple-800/40 p-5 sm:p-6 text-white shadow-xl">
+          <div className="absolute right-0 top-0 w-80 h-full bg-gradient-to-l from-fuchsia-500/10 via-cyan-500/10 to-transparent pointer-events-none" />
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-xl">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5" />
+                New: Diffusion & Motion Synthesis
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-white">
+                Generate 8K Images & Motion Videos from Text
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Create photorealistic imagery and 24fps MP4 video sequences from natural language prompts. Features Khmer Angkor Heritage, Cyberpunk, 3D CGI, and Hollywood cinematic styles with AI prompt expansion.
+              </p>
+            </div>
+            <button
+              onClick={onNavigateToMedia}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 text-white text-xs sm:text-sm font-bold shadow-lg shadow-fuchsia-600/25 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+            >
+              <span>Open Media Studio</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

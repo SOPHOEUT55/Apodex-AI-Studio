@@ -35,6 +35,7 @@ import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
 import { PythonLabView } from './components/PythonLabView';
 import { VoiceStudioView } from './components/VoiceStudioView';
+import { MediaStudioView } from './components/MediaStudioView';
 import { AuthModal } from './components/AuthModal';
 import { SystemPromptModal } from './components/SystemPromptModal';
 import { speakText } from './utils/tts';
@@ -576,6 +577,20 @@ export default function App() {
               setActiveTab('python');
             }}
             onNavigateToTTS={() => setActiveTab('tts')}
+            onNavigateToMedia={() => setActiveTab('media')}
+          />
+        );
+      case 'media':
+        return (
+          <MediaStudioView
+            currentUser={currentUser}
+            language={settings.language || 'en'}
+            onNavigateToChat={(prompt) => {
+              if (prompt) {
+                createNewConversation('Media AI Assistant', prompt, currentModelId);
+              }
+              setActiveTab('chat');
+            }}
           />
         );
       case 'chat':
