@@ -33,7 +33,12 @@ import {
   VolumeX,
   Mic,
   MicOff,
+  Loader2,
 } from 'lucide-react';
+import {
+  transcribeAudioWithGemini,
+  MicrophoneRecorder,
+} from '../services/transcribeApi';
 
 interface ChatViewProps {
   currentUser: User;
@@ -91,7 +96,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [downloadingMsgId, setDownloadingMsgId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState<boolean>(false);
+  const [isTranscribingAudio, setIsTranscribingAudio] = useState<boolean>(false);
   const recognitionStopperRef = useRef<(() => void) | null>(null);
+  const micRecorderRef = useRef<MicrophoneRecorder | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -113,6 +120,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       if (recognitionStopperRef.current) {
         recognitionStopperRef.current();
         recognitionStopperRef.current = null;
+      }
+      if (micRecorderRef.current && micRecorderRef.current.isRecording()) {
+        micRecorderRef.current.stop().catch(() => {});
+        micRecorderRef.current = null;
       }
     };
   }, [conversation.id]);
@@ -152,37 +163,61 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  const toggleVoiceInput = () => {
+  const toggleVoiceInput = async () => {
     if (isListening) {
+      setIsListening(false);
+      if (micRecorderRef.current && micRecorderRef.current.isRecording()) {
+        try {
+          setIsTranscribingAudio(true);
+          const { blob } = await micRecorderRef.current.stop();
+          const res = await transcribeAudioWithGemini(blob);
+          if (res.transcript) {
+            setInputText((prev) => (prev ? `${prev} ${res.transcript}` : res.transcript));
+          }
+        } catch (err) {
+          console.warn('Gemini audio transcription fallback:', err);
+        } finally {
+          setIsTranscribingAudio(false);
+          micRecorderRef.current = null;
+        }
+        return;
+      }
       if (recognitionStopperRef.current) {
         recognitionStopperRef.current();
         recognitionStopperRef.current = null;
       }
-      setIsListening(false);
     } else {
-      if (!isSpeechRecognitionSupported()) {
-        alert('Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
-        return;
-      }
       try {
-        const ttsLang = getTtsCode(language);
-        const recognizer = startVoiceRecognition(
-          {
-            onStart: () => setIsListening(true),
-            onResult: (transcript, isFinal) => {
-              setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-              if (isFinal) {
-                setIsListening(false);
-              }
+        const recorder = new MicrophoneRecorder();
+        await recorder.start();
+        micRecorderRef.current = recorder;
+        setIsListening(true);
+      } catch (micErr) {
+        console.warn('MicrophoneRecorder fallback to Web Speech:', micErr);
+        if (!isSpeechRecognitionSupported()) {
+          alert('Microphone access is not available or supported in this browser.');
+          return;
+        }
+        try {
+          const ttsLang = getTtsCode(language);
+          const recognizer = startVoiceRecognition(
+            {
+              onStart: () => setIsListening(true),
+              onResult: (transcript, isFinal) => {
+                setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+                if (isFinal) {
+                  setIsListening(false);
+                }
+              },
+              onEnd: () => setIsListening(false),
+              onError: () => setIsListening(false),
             },
-            onEnd: () => setIsListening(false),
-            onError: () => setIsListening(false),
-          },
-          ttsLang
-        );
-        recognitionStopperRef.current = recognizer.stop;
-      } catch {
-        setIsListening(false);
+            ttsLang
+          );
+          recognitionStopperRef.current = recognizer.stop;
+        } catch {
+          setIsListening(false);
+        }
       }
     }
   };
@@ -600,14 +635,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <button
             type="button"
             onClick={toggleVoiceInput}
+            disabled={isTranscribingAudio}
             className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
-              isListening
+              isTranscribingAudio
+                ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400'
+                : isListening
                 ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20 animate-pulse'
                 : 'text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
             }`}
-            title={isListening ? 'Stop listening (Recording Voice)' : 'Voice Dictation (Microphone)'}
+            title={
+              isTranscribingAudio
+                ? 'Transcribing audio with gemini-3.5-transcribe...'
+                : isListening
+                ? 'Stop recording & transcribe with gemini-3.5-transcribe'
+                : 'Voice microphone input (transcribed with gemini-3.5-transcribe)'
+            }
           >
-            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            {isTranscribingAudio ? (
+              <Loader2 className="w-4 h-4 animate-spin text-cyan-500" />
+            ) : isListening ? (
+              <MicOff className="w-4 h-4" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
           </button>
 
           <textarea
@@ -617,13 +667,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
             placeholder={
-              isListening
-                ? 'Listening to your voice... Speak now'
+              isTranscribingAudio
+                ? 'Transcribing audio with gemini-3.5-transcribe...'
+                : isListening
+                ? 'Recording audio with microphone... Click mic to stop & transcribe'
                 : isGenerating
                 ? `${isVoxtral ? 'Mistral Voxtral 24B' : isOmni ? 'Nemotron Nano Omni' : isNemotron ? 'NVIDIA Nemotron 3' : 'Apodex 1.1 Mini'} is generating reasoned response...`
                 : `Ask ${isVoxtral ? 'Mistral Voxtral' : isOmni ? 'Nemotron Nano Omni' : isNemotron ? 'NVIDIA Nemotron' : 'Apodex'} anything (Shift+Enter for newline)...`
             }
-            disabled={isGenerating}
+            disabled={isGenerating || isTranscribingAudio}
             className="flex-1 max-h-36 bg-transparent border-none text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 resize-none px-2.5 py-1.5 focus:outline-none leading-relaxed"
           />
 

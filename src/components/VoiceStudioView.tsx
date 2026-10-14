@@ -30,6 +30,11 @@ import {
   getTtsCode,
 } from '../utils/i18n';
 import {
+  transcribeAudioWithGemini,
+  MicrophoneRecorder,
+  TranscriptionResult,
+} from '../services/transcribeApi';
+import {
   Volume2,
   VolumeX,
   Play,
@@ -50,6 +55,11 @@ import {
   Zap,
   Globe,
   Languages,
+  FileAudio,
+  Upload,
+  FileText,
+  RefreshCw,
+  Square,
 } from 'lucide-react';
 
 interface VoiceStudioViewProps {
@@ -70,6 +80,9 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
   onSelectLanguage,
 }) => {
   const [activeLang, setActiveLang] = useState<string>(language || 'en');
+  // Studio Mode: 'tts' | 'transcribe'
+  const [studioMode, setStudioMode] = useState<'tts' | 'transcribe'>('tts');
+
   const presetScripts = getPresetScripts(activeLang);
   const [text, setText] = useState<string>(() => presetScripts[0]?.text || '');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -90,10 +103,22 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
   const [activeCharIndex, setActiveCharIndex] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Dictation (STT) state
+  // Dictation (STT) fallback state
   const [isListening, setIsListening] = useState<boolean>(false);
   const [sttTranscript, setSttTranscript] = useState<string>('');
   const recognitionStopperRef = useRef<(() => void) | null>(null);
+
+  // Audio Transcription (gemini-3.5-transcribe) state
+  const [isRecordingMic, setIsRecordingMic] = useState<boolean>(false);
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [transcriptionResult, setTranscriptionResult] = useState<TranscriptionResult | null>(null);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [customTranscribePrompt, setCustomTranscribePrompt] = useState<string>('');
+  const micRecorderRef = useRef<MicrophoneRecorder | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
 
   // Sync external language changes
   useEffect(() => {
@@ -374,6 +399,78 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
     }
   };
 
+  const handleStartMicRecording = async () => {
+    try {
+      setTranscriptionError(null);
+      if (!micRecorderRef.current) {
+        micRecorderRef.current = new MicrophoneRecorder();
+      }
+      await micRecorderRef.current.start();
+      setIsRecordingMic(true);
+      setRecordingSeconds(0);
+      setRecordedAudioBlob(null);
+      if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+        setRecordedAudioUrl(null);
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+      showToast('Microphone recording started. Speak now...');
+    } catch (err: any) {
+      console.error(err);
+      setTranscriptionError(err.message || 'Microphone access failed.');
+      showToast('Microphone error: ' + (err.message || 'Permission denied'));
+    }
+  };
+
+  const handleStopMicRecording = async () => {
+    if (!micRecorderRef.current) return;
+    try {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setIsRecordingMic(false);
+      const { blob } = await micRecorderRef.current.stop();
+      setRecordedAudioBlob(blob);
+      const url = URL.createObjectURL(blob);
+      setRecordedAudioUrl(url);
+      showToast('Audio recorded! Transcribing with gemini-3.5-transcribe...');
+      await performTranscription(blob);
+    } catch (err: any) {
+      console.error(err);
+      setTranscriptionError(err.message || 'Failed to stop recording');
+    }
+  };
+
+  const performTranscription = async (blob: Blob) => {
+    try {
+      setIsTranscribing(true);
+      setTranscriptionError(null);
+      const result = await transcribeAudioWithGemini(blob, customTranscribePrompt || undefined);
+      setTranscriptionResult(result);
+      showToast(`Transcription complete with ${result.model}! (${result.wordCount} words)`);
+    } catch (err: any) {
+      console.error(err);
+      setTranscriptionError(err.message || 'Transcription failed');
+      showToast('Transcription failed: ' + (err.message || 'Error'));
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRecordedAudioBlob(file);
+    const url = URL.createObjectURL(file);
+    setRecordedAudioUrl(url);
+    showToast(`Loaded "${file.name}". Transcribing with gemini-3.5-transcribe...`);
+    performTranscription(file);
+  };
+
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   const estimatedSeconds = Math.ceil((wordCount / (150 * rate)) * 60);
 
@@ -452,7 +549,42 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
         </div>
       </div>
 
-      {/* Multi-Language Voice & Content Selector Bar */}
+      {/* Studio Mode Selector (TTS vs Audio Transcription) */}
+      <div className="flex items-center justify-between p-1.5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setStudioMode('tts')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+              studioMode === 'tts'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Volume2 className="w-4 h-4" />
+            <span>Speech Synthesis (TTS) & Khmer Voices</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStudioMode('transcribe')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+              studioMode === 'transcribe'
+                ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-md shadow-cyan-600/20'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Mic className="w-4 h-4" />
+            <span>Audio Transcription (gemini-3.5-transcribe)</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-white/20 text-white uppercase">
+              New
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {studioMode === 'tts' && (
+        <>
+          {/* Multi-Language Voice & Content Selector Bar */}
       <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -1153,6 +1285,271 @@ export const VoiceStudioView: React.FC<VoiceStudioViewProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Mode 2: Audio Transcription Workspace (Powered by gemini-3.5-transcribe) */}
+      {studioMode === 'transcribe' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Audio Input Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Microphone Recording & Audio Upload */}
+            <div className="lg:col-span-6 space-y-5">
+              {/* Card 1: Live Microphone Audio Input */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-cyan-500" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Microphone Audio Input
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                    gemini-3.5-transcribe
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Input audio with your microphone. The app captures your voice in real time and automatically transcribes it with high precision using the Google Gemini model <code className="text-cyan-600 dark:text-cyan-400 font-mono">gemini-3.5-transcribe</code>.
+                </p>
+
+                {/* Big Interactive Record Button */}
+                <div className="flex flex-col items-center justify-center p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-4">
+                  {isRecordingMic ? (
+                    <>
+                      <div className="relative">
+                        <div className="absolute -inset-3 rounded-full bg-rose-500/30 animate-ping" />
+                        <button
+                          type="button"
+                          onClick={handleStopMicRecording}
+                          className="relative w-20 h-20 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xl shadow-rose-500/30 transition-all cursor-pointer"
+                          title="Click to stop recording and transcribe"
+                        >
+                          <Square className="w-8 h-8 fill-white" />
+                        </button>
+                      </div>
+
+                      <div className="text-center space-y-1">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-mono text-sm font-bold border border-rose-500/30">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                          <span>
+                            {Math.floor(recordingSeconds / 60)
+                              .toString()
+                              .padStart(2, '0')}
+                            :{(recordingSeconds % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          Listening to microphone... Speak clearly.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleStopMicRecording}
+                        className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:opacity-90 text-white font-bold text-xs shadow-lg shadow-rose-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-white" />
+                        <span>Stop & Transcribe with Gemini 3.5</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleStartMicRecording}
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-600 to-indigo-600 hover:scale-105 active:scale-95 text-white flex items-center justify-center shadow-xl shadow-cyan-600/30 transition-all cursor-pointer"
+                        title="Click to start recording microphone audio"
+                      >
+                        <Mic className="w-8 h-8" />
+                      </button>
+
+                      <div className="text-center space-y-0.5">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">
+                          Click to Record Microphone
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Supports English, Khmer, and any spoken language
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Recorded Audio Player & Re-transcribe */}
+                {recordedAudioUrl && !isRecordingMic && (
+                  <div className="p-4 rounded-2xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-500/30 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <span className="flex items-center gap-1.5">
+                        <FileAudio className="w-4 h-4 text-cyan-500" />
+                        <span>Recorded Audio Preview</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => recordedAudioBlob && performTranscription(recordedAudioBlob)}
+                        disabled={isTranscribing}
+                        className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isTranscribing ? 'animate-spin' : ''}`} />
+                        <span>Re-transcribe</span>
+                      </button>
+                    </div>
+
+                    <audio src={recordedAudioUrl} controls className="w-full h-10 rounded-xl" />
+                  </div>
+                )}
+              </div>
+
+              {/* Card 2: Audio File Upload */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Upload className="w-4 h-4 text-slate-400" />
+                    <span>Upload Audio File (.mp3, .wav, .m4a, .webm)</span>
+                  </h4>
+                </div>
+
+                <label className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 dark:hover:border-cyan-400 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/40">
+                  <Upload className="w-6 h-6 text-slate-400 mb-2" />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Click to browse or drop an audio file
+                  </span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">
+                    Transcribe interviews, lectures, meetings, or voice memos
+                  </span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleAudioFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Right Column: Transcription Output & Actions */}
+            <div className="lg:col-span-6 space-y-5">
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-cyan-500" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Transcription Output
+                    </h3>
+                  </div>
+                  {transcriptionResult && (
+                    <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                      {transcriptionResult.model}
+                    </span>
+                  )}
+                </div>
+
+                {isTranscribing ? (
+                  <div className="p-12 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-center space-y-3 animate-pulse">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center mx-auto shadow-lg shadow-cyan-600/30">
+                      <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Transcribing audio with gemini-3.5-transcribe...
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        Analyzing audio waveforms, punctuation, and linguistic nuances
+                      </p>
+                    </div>
+                  </div>
+                ) : transcriptionError ? (
+                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs space-y-1">
+                    <span className="font-bold">Transcription Error: </span>
+                    <span>{transcriptionError}</span>
+                  </div>
+                ) : transcriptionResult ? (
+                  <div className="space-y-4">
+                    {/* Transcript Box */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans max-h-96 overflow-y-auto">
+                      {transcriptionResult.transcript}
+                    </div>
+
+                    {/* Stats Row */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                      <span>{transcriptionResult.wordCount} words • {transcriptionResult.charCount} characters</span>
+                      <span className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">{transcriptionResult.model}</span>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(transcriptionResult.transcript);
+                          showToast('Transcript copied to clipboard!');
+                        }}
+                        className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Transcript</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigateToChat(transcriptionResult.transcript);
+                        }}
+                        className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:opacity-95 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send to Chat as Prompt</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setText(transcriptionResult.transcript);
+                          setStudioMode('tts');
+                          showToast('Transferred to Voice Synthesis (TTS)!');
+                        }}
+                        className="py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>Speak Aloud with TTS</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blob = new Blob([transcriptionResult.transcript], { type: 'text/plain;charset=utf-8' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `transcript-${Date.now()}.txt`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download (.txt)</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-10 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center space-y-2">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                      <Mic className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      No Audio Transcribed Yet
+                    </p>
+                    <p className="text-[11px] text-slate-400 max-w-xs">
+                      Click the microphone button on the left to record audio, or upload an audio file to transcribe with gemini-3.5-transcribe.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

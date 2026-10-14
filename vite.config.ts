@@ -6,7 +6,7 @@ import os from 'os';
 import { spawn } from 'child_process';
 import {defineConfig, Plugin} from 'vite';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, GenerateVideosOperation } from '@google/genai';
 
 dotenv.config();
 
@@ -567,6 +567,87 @@ function apiProxyPlugin(): Plugin {
           return;
         }
 
+        // Endpoint: /api/audio/transcribe (Transcribes microphone audio using gemini-3.5-transcribe)
+        if (req.url === '/api/audio/transcribe' && req.method === 'POST') {
+          try {
+            let bodyBuffer = '';
+            for await (const chunk of req) {
+              bodyBuffer += chunk;
+            }
+            const body = bodyBuffer ? JSON.parse(bodyBuffer) : {};
+            let rawAudio = body.audioData || body.audio || '';
+            let mimeType = body.mimeType || 'audio/webm';
+
+            if (!rawAudio) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Audio data is required for transcription' }));
+              return;
+            }
+
+            if (rawAudio.startsWith('data:')) {
+              const match = rawAudio.match(/^data:([^;]+);base64,(.+)$/);
+              if (match) {
+                mimeType = match[1];
+                rawAudio = match[2];
+              } else {
+                rawAudio = rawAudio.split(',')[1] || rawAudio;
+              }
+            }
+
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 503;
+              res.end(JSON.stringify({ error: 'GEMINI_API_KEY is not configured for gemini-3.5-transcribe' }));
+              return;
+            }
+
+            const ai = new GoogleGenAI({
+              apiKey,
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+            });
+
+            const userPrompt = body.prompt || 'Transcribe this audio recording accurately. Return the exact spoken words with natural punctuation and capitalization.';
+
+            const response = await ai.models.generateContent({
+              model: 'gemini-3.5-transcribe',
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType,
+                      data: rawAudio,
+                    },
+                  },
+                  { text: userPrompt },
+                ],
+              },
+            });
+
+            const transcript = response.text || '';
+
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              transcript,
+              model: 'gemini-3.5-transcribe',
+              mimeType,
+              charCount: transcript.length,
+              wordCount: transcript.trim() ? transcript.trim().split(/\s+/).length : 0,
+            }));
+          } catch (err: any) {
+            console.error('Error in /api/audio/transcribe:', err);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({
+              error: err.message || 'Audio transcription with gemini-3.5-transcribe failed',
+            }));
+          }
+          return;
+        }
+
         // Endpoint: /api/media/enhance-prompt (Enhances prompt using Gemini 3.8 Flash)
         if (req.url === '/api/media/enhance-prompt' && req.method === 'POST') {
           try {
@@ -660,6 +741,33 @@ function apiProxyPlugin(): Plugin {
 
             let imgBuffer: Buffer | null = null;
             const encodedPrompt = encodeURIComponent(finalPrompt);
+
+            // Tier 0: Google Imagen 3 (Nano Banana 2.1) & Gemini Flash Image
+            if ((model === 'gemini-nano-banana-2.1' || model === 'gemini-3.1-flash-lite-image') && process.env.GEMINI_API_KEY) {
+              try {
+                const ai = new GoogleGenAI({
+                  apiKey: process.env.GEMINI_API_KEY,
+                  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+                });
+                const mappedAspect = width > height ? '16:9' : width < height ? '9:16' : '1:1';
+                const genRes = await ai.models.generateContent({
+                  model,
+                  contents: { parts: [{ text: finalPrompt }] },
+                  config: {
+                    imageConfig: {
+                      aspectRatio: mappedAspect,
+                      imageSize: '1K',
+                    },
+                  },
+                });
+                const imagePart = genRes.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data);
+                if (imagePart?.inlineData?.data) {
+                  imgBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+                }
+              } catch (geminiImgErr: any) {
+                console.warn('Google Imagen/Gemini image model fallback:', geminiImgErr?.message || geminiImgErr);
+              }
+            }
 
             // Tier 1: Try Pollinations with prompt or clean keywords
             const words = rawPrompt.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
@@ -827,6 +935,70 @@ function apiProxyPlugin(): Plugin {
               h = 512;
             }
 
+            // Tier 0: Google Veo 3.1 Cinema & Veo 3.1 Lite Generative Video
+            if (body.model?.includes('veo') && process.env.GEMINI_API_KEY) {
+              try {
+                const ai = new GoogleGenAI({
+                  apiKey: process.env.GEMINI_API_KEY,
+                  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+                });
+                const veoModel =
+                  body.model === 'veo-3.1-generate-preview'
+                    ? 'veo-3.1-generate-preview'
+                    : body.model === 'veo-3.1-lite-generate-preview'
+                    ? 'veo-3.1-lite-generate-preview'
+                    : 'veo-3.1-fast-generate-preview';
+                const resolution = body.resolution === '1080p' ? '1080p' : '720p';
+                const veoAspect = aspectRatio === '9:16' ? '9:16' : '16:9';
+
+                let op;
+                if (body.imageUrl && body.imageUrl.startsWith('data:image')) {
+                  const base64Data = body.imageUrl.split(',')[1];
+                  const mime = body.imageUrl.split(';')[0].split(':')[1] || 'image/png';
+                  op = await ai.models.generateVideos({
+                    model: veoModel,
+                    prompt: prompt || 'A cinematic photorealistic video sequence',
+                    image: {
+                      imageBytes: base64Data,
+                      mimeType: mime,
+                    },
+                    config: {
+                      numberOfVideos: 1,
+                      resolution: resolution as any,
+                      aspectRatio: veoAspect as any,
+                    },
+                  });
+                } else {
+                  op = await ai.models.generateVideos({
+                    model: veoModel,
+                    prompt: prompt || 'A cinematic photorealistic video sequence',
+                    config: {
+                      numberOfVideos: 1,
+                      resolution: resolution as any,
+                      aspectRatio: veoAspect as any,
+                    },
+                  });
+                }
+
+                if (op?.name) {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.statusCode = 200;
+                  res.end(JSON.stringify({
+                    success: true,
+                    isVeoOperation: true,
+                    operationName: op.name,
+                    model: veoModel,
+                    prompt,
+                    resolution,
+                    aspectRatio: veoAspect,
+                  }));
+                  return;
+                }
+              } catch (veoErr: any) {
+                console.warn('Google Veo 3.1 video generation fallback to 24fps motion synthesis:', veoErr?.message || veoErr);
+              }
+            }
+
             const id = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const tmpImg = path.join(MEDIA_CACHE_DIR, `${id}.jpg`);
             const tmpVideo = path.join(MEDIA_CACHE_DIR, `${id}.mp4`);
@@ -991,6 +1163,110 @@ function apiProxyPlugin(): Plugin {
             res.setHeader('Content-Type', 'application/json');
             res.statusCode = 500;
             res.end(JSON.stringify({ error: err.message || 'Video generation failed' }));
+          }
+          return;
+        }
+
+        // Endpoint: /api/media/video-status (Polls Google Veo 3.1 long running operation)
+        if (req.url === '/api/media/video-status' && req.method === 'POST') {
+          try {
+            let bodyBuffer = '';
+            for await (const chunk of req) {
+              bodyBuffer += chunk;
+            }
+            const body = bodyBuffer ? JSON.parse(bodyBuffer) : {};
+            const operationName = body.operationName;
+
+            if (!operationName) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'operationName is required' }));
+              return;
+            }
+
+            const ai = new GoogleGenAI({
+              apiKey: process.env.GEMINI_API_KEY || '',
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+            });
+            const op = new GenerateVideosOperation();
+            op.name = operationName;
+            const updated = await ai.operations.getVideosOperation({ operation: op });
+
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              done: Boolean(updated.done),
+              metadata: updated.metadata,
+            }));
+          } catch (statusErr: any) {
+            console.error('Error in /api/media/video-status:', statusErr);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: statusErr.message || 'Status check failed' }));
+          }
+          return;
+        }
+
+        // Endpoint: /api/media/video-download (Downloads completed Google Veo 3.1 video to local cache)
+        if (req.url === '/api/media/video-download' && req.method === 'POST') {
+          try {
+            let bodyBuffer = '';
+            for await (const chunk of req) {
+              bodyBuffer += chunk;
+            }
+            const body = bodyBuffer ? JSON.parse(bodyBuffer) : {};
+            const operationName = body.operationName;
+
+            if (!operationName) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'operationName is required' }));
+              return;
+            }
+
+            const apiKey = process.env.GEMINI_API_KEY || '';
+            const ai = new GoogleGenAI({
+              apiKey,
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+            });
+            const op = new GenerateVideosOperation();
+            op.name = operationName;
+            const updated = await ai.operations.getVideosOperation({ operation: op });
+            const uri = updated.response?.generatedVideos?.[0]?.video?.uri;
+
+            if (!uri) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Video URI not available yet' }));
+              return;
+            }
+
+            const videoRes = await fetch(uri, {
+              headers: { 'x-goog-api-key': apiKey },
+            });
+
+            if (!videoRes.ok) {
+              throw new Error(`Failed to download Veo video from Google URI (HTTP ${videoRes.status})`);
+            }
+
+            const id = `veo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            const destPath = path.join(MEDIA_CACHE_DIR, `${id}.mp4`);
+            const arrayBuf = await videoRes.arrayBuffer();
+            await fs.promises.writeFile(destPath, Buffer.from(arrayBuf));
+
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              id,
+              videoUrl: `/api/media/asset?id=${id}.mp4`,
+              thumbnailUrl: `/api/media/asset?id=${id}.jpg`,
+            }));
+          } catch (dlErr: any) {
+            console.error('Error in /api/media/video-download:', dlErr);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: dlErr.message || 'Video download failed' }));
           }
           return;
         }

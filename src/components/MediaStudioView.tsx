@@ -3,6 +3,7 @@ import { GeneratedMediaItem, User } from '../types';
 import {
   MEDIA_STYLE_PRESETS,
   IMAGE_MODELS,
+  VIDEO_MODELS,
   VIDEO_MOTIONS,
   getStoredMediaItems,
   removeStoredMediaItem,
@@ -110,12 +111,15 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
 
   // Video Generation State
   const [videoPrompt, setVideoPrompt] = useState<string>('');
+  const [videoModel, setVideoModel] = useState<string>('veo-3.1-fast-generate-preview');
+  const [videoResolution, setVideoResolution] = useState<'720p' | '1080p' | '4k'>('1080p');
   const [videoMotion, setVideoMotion] = useState<'zoom-in' | 'zoom-out' | 'pan' | 'tilt'>('zoom-in');
-  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [videoDuration, setVideoDuration] = useState<number>(4);
   const [videoAudio, setVideoAudio] = useState<boolean>(true);
   const [videoSourceImage, setVideoSourceImage] = useState<string | null>(null);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoProgressStatus, setVideoProgressStatus] = useState<string>('');
   const [latestVideo, setLatestVideo] = useState<GeneratedMediaItem | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
 
@@ -201,15 +205,23 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
 
     setIsGeneratingVideo(true);
     setVideoError(null);
+    setVideoProgressStatus(
+      videoModel.includes('veo')
+        ? 'Connecting to Google DeepMind Veo 3.1 video cluster...'
+        : 'Synthesizing 24fps motion vectors & audio...'
+    );
 
     try {
       const result = await generateVideoFromText({
         prompt: promptToUse || 'cinematic motion atmospheric visual sequence',
         imageUrl: videoSourceImage || undefined,
+        model: videoModel,
+        resolution: videoResolution,
         motion: videoMotion,
         duration: videoDuration,
         aspectRatio: videoAspectRatio,
         audio: videoAudio,
+        onProgress: (status) => setVideoProgressStatus(status),
       });
       setLatestVideo(result);
       setGalleryItems(getStoredMediaItems());
@@ -217,6 +229,7 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
       setVideoError(err.message || 'Video generation failed');
     } finally {
       setIsGeneratingVideo(false);
+      setVideoProgressStatus('');
     }
   };
 
@@ -435,9 +448,14 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
                 {/* Diffusion Model Selector */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {t('modelEngine', language)}
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {t('modelEngine', language)}
+                    </label>
+                    <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                      {IMAGE_MODELS.find((m) => m.id === imageModel)?.tag}
+                    </span>
+                  </div>
                   <select
                     value={imageModel}
                     onChange={(e) => setImageModel(e.target.value)}
@@ -445,10 +463,13 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                   >
                     {IMAGE_MODELS.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name} ({m.tag})
+                        {m.name} • {m.tag}
                       </option>
                     ))}
                   </select>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                    {IMAGE_MODELS.find((m) => m.id === imageModel)?.description}
+                  </p>
                 </div>
 
                 {/* Aspect Ratio Buttons */}
@@ -675,12 +696,85 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                 />
               </div>
 
-              {/* Camera Motion Selection */}
+              {/* Video Model Selection Hub (Realistic Models: Google Veo 3.1 & Motion Synthesizer) */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-fuchsia-500" />
-                  {t('cameraMotion', language)}
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-fuchsia-500" />
+                    <span>{isKhmer ? 'ម៉ូដែលវីដេអូ AI (Video AI Model)' : 'Video Generation Model'}</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-fuchsia-500 bg-fuchsia-500/10 px-2 py-0.5 rounded-full border border-fuchsia-500/20">
+                    Google Veo 3.1 & 24fps
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {VIDEO_MODELS.map((m) => {
+                    const isSelected = videoModel === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setVideoModel(m.id)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
+                          isSelected
+                            ? 'bg-fuchsia-50 dark:bg-fuchsia-950/40 border-fuchsia-500 dark:border-fuchsia-400 ring-2 ring-fuchsia-500/20 shadow-sm'
+                            : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                              m.tag.includes('Veo')
+                                ? 'bg-gradient-to-r from-fuchsia-500/20 to-indigo-500/20 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/30'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {m.tag}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-medium">
+                            {m.provider}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {m.name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                          {m.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Camera Motion Selection & Resolution */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-fuchsia-500" />
+                    {t('cameraMotion', language)}
+                  </label>
+                  {/* Resolution Selector */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mr-1">
+                      {isKhmer ? 'គុណភាព:' : 'Resolution:'}
+                    </span>
+                    {(['720p', '1080p', '4k'] as const).map((res) => (
+                      <button
+                        key={res}
+                        type="button"
+                        onClick={() => setVideoResolution(res)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          videoResolution === res
+                            ? 'bg-fuchsia-600 text-white border-fuchsia-700 shadow-xs'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {res.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {VIDEO_MOTIONS.map((m) => {
                     const isSelected = videoMotion === m.id;
@@ -732,24 +826,27 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                   </div>
                 </div>
 
-                {/* Aspect Ratio */}
+                {/* Aspect Ratio (16:9 landscape or 9:16 portrait) */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     {t('aspectRatio', language)}
                   </label>
                   <div className="flex items-center gap-1.5">
-                    {['16:9', '9:16', '1:1'].map((ratio) => (
+                    {[
+                      { id: '16:9', label: '16:9 Landscape' },
+                      { id: '9:16', label: '9:16 Portrait' },
+                    ].map((item) => (
                       <button
-                        key={ratio}
+                        key={item.id}
                         type="button"
-                        onClick={() => setVideoAspectRatio(ratio as any)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          videoAspectRatio === ratio
+                        onClick={() => setVideoAspectRatio(item.id as any)}
+                        className={`flex-1 py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          videoAspectRatio === item.id
                             ? 'bg-fuchsia-600 text-white border-fuchsia-700 shadow-sm'
                             : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                         }`}
                       >
-                        {ratio}
+                        {item.label}
                       </button>
                     ))}
                   </div>
@@ -826,12 +923,14 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-fuchsia-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-fuchsia-600/30">
                     <Film className="w-6 h-6 text-white animate-bounce" />
                   </div>
-                  <div>
+                  <div className="max-w-xs">
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      {isKhmer ? 'កំពុងផលិតចលនាកាមេរ៉ា និងសំឡេង...' : 'Rendering 24fps motion vectors & audio...'}
+                      {videoProgressStatus || (isKhmer ? 'កំពុងផលិតចលនាកាមេរ៉ា និងសំឡេង...' : 'Synthesizing video sequence...')}
                     </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {isKhmer ? 'សូមរង់ចាំពីរបីវិនាទី' : 'Synthesizing camera movement & encoding H.264'}
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      {videoModel.includes('veo')
+                        ? 'Google DeepMind Veo 3.1 neural video diffusion model with cinematic motion dynamics'
+                        : (isKhmer ? 'សូមរង់ចាំពីរបីវិនាទី' : 'Synthesizing camera movement & encoding H.264')}
                     </p>
                   </div>
                 </div>
@@ -849,9 +948,18 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                   </div>
 
                   <div className="space-y-2.5">
-                    <div className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
-                      <span className="font-semibold text-slate-900 dark:text-white">Motion: </span>
-                      <span className="capitalize">{latestVideo.motion}</span> • {latestVideo.duration}s duration
+                    <div className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                      <div>
+                        <span className="font-semibold text-slate-900 dark:text-white">Motion: </span>
+                        <span className="capitalize">{latestVideo.motion}</span> • {latestVideo.duration}s duration
+                      </div>
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/30">
+                        {latestVideo.model?.includes('veo-3.1-fast')
+                          ? 'Google Veo 3.1 Fast'
+                          : latestVideo.model?.includes('veo')
+                          ? 'Google Veo 3.1 Cinema'
+                          : 'Motion Synthesizer'}
+                      </span>
                     </div>
 
                     <a
@@ -1011,6 +1119,21 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                           {isVideo ? <Film className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
                           <span className="uppercase">{item.type}</span>
                         </span>
+                        {item.model && (
+                          <span className="px-2 py-1 rounded-full text-[9px] font-semibold bg-black/70 backdrop-blur-md text-white border border-white/20">
+                            {item.model.includes('veo')
+                              ? 'Veo 3.1'
+                              : item.model.includes('nano-banana') || item.model.includes('imagen')
+                              ? 'Imagen 3'
+                              : item.model.includes('flux-realism')
+                              ? 'Flux 8K'
+                              : item.model.includes('flux')
+                              ? 'Flux.1'
+                              : item.model.includes('sdxl')
+                              ? 'SDXL Photo'
+                              : item.model}
+                          </span>
+                        )}
                       </div>
 
                       {/* Delete Button on Hover */}

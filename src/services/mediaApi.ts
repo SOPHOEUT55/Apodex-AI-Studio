@@ -119,9 +119,34 @@ export const IMAGE_MODELS = [
 ];
 
 export const VIDEO_MODELS = [
-  { id: 'veo-3.1-generate-preview', name: 'Google Veo 3.1 Cinema (1080p/4K)', tag: 'Premier Veo', description: 'Google DeepMind cutting-edge generative video model with cinematic physics, camera direction, and lifelike temporal coherence', provider: 'Google DeepMind' },
-  { id: 'veo-3.1-lite-generate-preview', name: 'Google Veo 3.1 Lite (720p)', tag: 'Fast Veo', description: 'Fast cinematic video generation from text or image keyframes powered by DeepMind Veo', provider: 'Google DeepMind' },
-  { id: 'motion-synthesizer', name: 'Cinematic Motion Synthesizer (24fps H.264)', tag: 'Sub-Second', description: 'Instant 24fps motion vector synthesis with spatial camera push/pan and stereo ambient audio', provider: 'Realtime Engine' },
+  {
+    id: 'veo-3.1-fast-generate-preview',
+    name: 'Google Veo 3.1 Fast Cinema (16:9 / 9:16)',
+    tag: 'Veo 3 Fast (Recommended)',
+    description: 'DeepMind high-speed generative video model producing realistic temporal motion, cinematic physics, and sharp composition in 16:9 landscape or 9:16 portrait',
+    provider: 'Google DeepMind',
+  },
+  {
+    id: 'veo-3.1-generate-preview',
+    name: 'Google Veo 3.1 Cinema (1080p/4K)',
+    tag: 'Premier Veo',
+    description: 'Google DeepMind flagship generative video model with cinematic physics, camera direction, and lifelike temporal coherence',
+    provider: 'Google DeepMind',
+  },
+  {
+    id: 'veo-3.1-lite-generate-preview',
+    name: 'Google Veo 3.1 Lite (720p)',
+    tag: 'Fast Veo',
+    description: 'Fast cinematic video generation from text or image keyframes powered by DeepMind Veo',
+    provider: 'Google DeepMind',
+  },
+  {
+    id: 'motion-synthesizer',
+    name: 'Cinematic Motion Synthesizer (24fps H.264)',
+    tag: 'Sub-Second',
+    description: 'Instant 24fps motion vector synthesis with spatial camera push/pan and stereo ambient audio',
+    provider: 'Realtime Engine',
+  },
 ];
 
 export const VIDEO_MOTIONS = [
@@ -287,7 +312,7 @@ export async function generateVideoFromText(params: GenerateVideoParams): Promis
       prompt: params.prompt,
       url: videoUrl || data.fallbackVideoUrl,
       thumbnailUrl: thumbnailUrl,
-      model: params.model || 'veo-3.1-generate-preview',
+      model: params.model || 'veo-3.1-fast-generate-preview',
       aspectRatio: params.aspectRatio || '16:9',
       duration: params.duration || 4,
       motion: params.motion || 'cinematic-veo',
